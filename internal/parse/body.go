@@ -8,6 +8,7 @@ import (
 var (
 	dependabotNotesRe = regexp.MustCompile(`(?is)<details>\s*<summary>\s*(?:release notes|changelog)\s*</summary>(.*?)</details>`)
 	renovateNotesRe   = regexp.MustCompile(`(?im)^###\s+release notes\s*$`)
+	renovateConfigRe  = regexp.MustCompile(`(?im)^###\s+configuration\b`)
 )
 
 // ReleaseNotes extracts release notes from a Dependabot or Renovate PR body.
@@ -24,8 +25,8 @@ func ReleaseNotes(body string) string {
 		return ""
 	}
 	rest := body[loc[1]:]
-	if end := strings.Index(strings.ToLower(rest), "### configuration"); end >= 0 {
-		rest = rest[:end]
+	if end := renovateConfigRe.FindStringIndex(rest); end != nil {
+		rest = rest[:end[0]]
 	}
 	rest = strings.TrimSpace(rest)
 	return strings.TrimSpace(strings.TrimSuffix(rest, "---"))
