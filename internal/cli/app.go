@@ -80,16 +80,41 @@ func (a *app) execute(ctx context.Context, args []string) int {
 	root.SetArgs(args)
 	root.SetOut(a.stdout)
 	root.SetErr(a.stderr)
-	err := root.ExecuteContext(ctx)
+	cmd, err := root.ExecuteContextC(ctx)
 	var ee *exitError
 	if errors.As(err, &ee) {
 		return ee.code
+	}
+	if err != nil && jsonRequested(args) {
+		a.opts.json = true
+		name := ""
+		if cmd != nil && cmd != root {
+			name = cmd.Name()
+		}
+		if errors.As(a.emit(output{command: name}, &usageError{msg: err.Error()}), &ee) {
+			return ee.code
+		}
+		return ExitError
 	}
 	if err != nil {
 		fmt.Fprintln(a.stderr, "error:", err)
 		return ExitError
 	}
 	return ExitOK
+}
+
+// jsonRequested reports whether --json appears in args; flag parsing may stop
+// on an earlier error before it is parsed.
+func jsonRequested(args []string) bool {
+	for _, arg := range args {
+		if arg == "--" {
+			return false
+		}
+		if arg == "--json" || arg == "--json=true" {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *app) rootCmd() *cobra.Command {
@@ -106,6 +131,7 @@ func (a *app) rootCmd() *cobra.Command {
 	f.IntVar(&a.opts.workers, "workers", 4, "parallel GraphQL requests while loading")
 	f.StringVar(&a.opts.team, "team", "", "use review requests for a team (team or org/team) instead of you")
 	f.BoolVar(&a.opts.json, "json", false, "print a JSON envelope on stdout")
+	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return &usageError{msg: err.Error()} })
 	root.AddCommand(a.listCmd())
 	root.AddCommand(a.showCmd())
 	return root

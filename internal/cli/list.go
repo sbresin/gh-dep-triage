@@ -73,9 +73,11 @@ func (a *app) listCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List dependency PRs with blockers and suggested actions",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			out := output{command: "list"}
+			if len(args) > 0 {
+				return a.emit(out, &usageError{msg: "list takes no arguments"})
+			}
 			keep, err := scopeFilter(scope)
 			if err != nil {
 				return a.emit(out, err)

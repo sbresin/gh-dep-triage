@@ -88,6 +88,29 @@ func TestUnknownCommandExitsOne(t *testing.T) {
 	}
 }
 
+func TestArgumentErrorsEmitJSONEnvelope(t *testing.T) {
+	tests := [][]string{
+		{"list", "--json", "--bogus"},
+		{"list", "--json", "extra"},
+		{"--json", "nope"},
+		{"list", "--limit", "abc", "--json"},
+	}
+	for _, args := range tests {
+		code, out, _ := runApp(t, testApp(sampleFake()), args...)
+		e := decodeEnvelope(t, out)
+		if code != ExitError || len(e.Errors) != 1 || e.Errors[0].Code != "invalid_argument" {
+			t.Errorf("%v: code=%d envelope=%+v", args, code, e)
+		}
+	}
+}
+
+func TestArgumentErrorWithoutJSONUsesStderr(t *testing.T) {
+	code, out, errOut := runApp(t, testApp(sampleFake()), "list", "--bogus")
+	if code != ExitError || out != "" || !strings.HasPrefix(errOut, "error: ") {
+		t.Errorf("code=%d stdout=%q stderr=%q", code, out, errOut)
+	}
+}
+
 func TestNotAuthenticated(t *testing.T) {
 	a := testApp(nil)
 	a.newClient = func() (github.Client, error) { return nil, github.ErrNotAuthenticated }
