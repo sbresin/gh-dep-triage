@@ -133,6 +133,7 @@ type PR struct {
 	SourceVersion      string       `json:"sourceVersion"`
 	TargetVersion      string       `json:"targetVersion"`
 	Bump               string       `json:"bump"`
+	Directory          string       `json:"directory,omitempty"`
 	GroupID            string       `json:"groupId,omitempty"`
 	Checks             CheckSummary `json:"checks"`
 	Blockers           []Blocker    `json:"blockers"`

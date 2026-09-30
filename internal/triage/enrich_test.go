@@ -96,3 +96,10 @@ func TestEnrich(t *testing.T) {
 		t.Errorf("slices must be non-nil: %+v", p)
 	}
 }
+
+func TestEnrichSetsDirectory(t *testing.T) {
+	pr := testPR("acme/api", 1, "Bump lodash from 4.17.20 to 4.17.21 in /frontend")
+	if pr.Directory != "/frontend" {
+		t.Errorf("directory = %q", pr.Directory)
+	}
+}

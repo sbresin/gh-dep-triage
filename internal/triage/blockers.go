@@ -140,7 +140,7 @@ func supersedingIndex(groups []*model.Group) map[string]*model.PR {
 			if pr.TargetVersion == "" {
 				continue
 			}
-			k := strings.ToLower(pr.Repo) + "\x00" + pr.PackageKey
+			k := strings.Join([]string{strings.ToLower(pr.Repo), pr.BaseRef, pr.Directory, pr.PackageKey}, "\x00")
 			byPkg[k] = append(byPkg[k], pr)
 		}
 	}
@@ -148,13 +148,21 @@ func supersedingIndex(groups []*model.Group) map[string]*model.PR {
 	for _, prs := range byPkg {
 		for _, p := range prs {
 			for _, o := range prs {
-				if o != p && isNewer(o, p) && (out[p.Ref] == nil || isNewer(o, out[p.Ref])) {
+				if o != p && sameMajor(o, p) && isNewer(o, p) && (out[p.Ref] == nil || isNewer(o, out[p.Ref])) {
 					out[p.Ref] = o
 				}
 			}
 		}
 	}
 	return out
+}
+
+// sameMajor is false only when both target versions have differing major
+// versions; incomparable versions fall back to isNewer's createdAt order.
+func sameMajor(o, p *model.PR) bool {
+	a, okA := parse.Major(o.TargetVersion)
+	b, okB := parse.Major(p.TargetVersion)
+	return !okA || !okB || a == b
 }
 
 func isNewer(o, p *model.PR) bool {

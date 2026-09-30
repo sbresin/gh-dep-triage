@@ -140,6 +140,43 @@ func TestSuperseded(t *testing.T) {
 	}
 }
 
+func TestNotSuperseded(t *testing.T) {
+	tests := []struct {
+		name         string
+		older, newer *model.PR
+	}{
+		{"different major (renovate separateMajorMinor)",
+			testPR("acme/api", 1, "update dependency eslint to v8.57.1"),
+			testPR("acme/api", 2, "update dependency eslint to v9.0.0")},
+		{"different directory",
+			testPR("acme/api", 1, "Bump lodash from 4.17.19 to 4.17.20 in /backend"),
+			testPR("acme/api", 2, "Bump lodash from 4.17.20 to 4.17.21 in /frontend")},
+		{"different base branch",
+			testPR("acme/api", 1, "Bump lodash from 4.17.19 to 4.17.20", func(p *model.PR) { p.BaseRef = "release-1" }),
+			testPR("acme/api", 2, lodash)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			diagnose(tt.older, tt.newer)
+			if len(tt.older.Blockers) != 0 || len(tt.newer.Blockers) != 0 {
+				t.Errorf("older=%v newer=%v", codes(tt.older), codes(tt.newer))
+			}
+		})
+	}
+}
+
+func TestSupersededSameDirectoryAndMajor(t *testing.T) {
+	older := testPR("acme/api", 1, "Bump lodash from 4.17.19 to 4.17.20 in /frontend")
+	newer := testPR("acme/api", 2, "Bump lodash from 4.17.20 to 4.18.0 in /frontend")
+	diagnose(older, newer)
+	if diff := cmp.Diff([]string{"superseded"}, codes(older)); diff != "" {
+		t.Errorf("older (-want +got):\n%s", diff)
+	}
+	if len(newer.Blockers) != 0 {
+		t.Errorf("newer=%v", codes(newer))
+	}
+}
+
 func TestBuildInfersBeforeGrouping(t *testing.T) {
 	a := testPR("a/x", 1, "Bump react from 18.3.0 to 19.0.0")
 	b := testPR("a/y", 2, "update dependency react to v19.0.0")

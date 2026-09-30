@@ -13,6 +13,7 @@ var (
 	dependabotRe        = regexp.MustCompile(`(?i)\bbump (.+?) from (\S+) to (\S+)`)
 	renovateTerraformRe = regexp.MustCompile(`(?i)\bupdate terraform ([a-z0-9._/-]+) to v?(\S+)`)
 	renovateGenericRe   = regexp.MustCompile(`(?i)\bupdate (?:dependency |package |github action )?(.+?) to v?(\S+)`)
+	dependabotDirRe     = regexp.MustCompile(`^\s+in\s+(/\S*)`)
 	trailingActionRe    = regexp.MustCompile(`(?i)\s+action$`)
 	leadingNumbersRe    = regexp.MustCompile(`^\d+(?:\.\d+)*`)
 )
@@ -23,12 +24,17 @@ type Title struct {
 	Source     string
 	Target     string
 	Bump       string
+	Directory  string
 }
 
 func ParseTitle(title string) Title {
-	if m := dependabotRe.FindStringSubmatch(title); m != nil {
-		pkg, src, dst := cleanToken(m[1]), cleanToken(m[2]), cleanToken(m[3])
-		return Title{Package: pkg, PackageKey: NormalizePackage(pkg), Source: src, Target: dst, Bump: ClassifyBump(src, dst)}
+	if loc := dependabotRe.FindStringSubmatchIndex(title); loc != nil {
+		pkg, src, dst := cleanToken(title[loc[2]:loc[3]]), cleanToken(title[loc[4]:loc[5]]), cleanToken(title[loc[6]:loc[7]])
+		dir := ""
+		if d := dependabotDirRe.FindStringSubmatch(title[loc[1]:]); d != nil {
+			dir = cleanToken(d[1])
+		}
+		return Title{Package: pkg, PackageKey: NormalizePackage(pkg), Source: src, Target: dst, Bump: ClassifyBump(src, dst), Directory: dir}
 	}
 	if m := renovateTerraformRe.FindStringSubmatch(title); m != nil {
 		pkg := cleanToken(m[1])
@@ -99,6 +105,16 @@ func ClassifyBump(source, target string) string {
 		}
 	}
 	return model.BumpPatch
+}
+
+// Major returns the first numeric version segment; ok is false when v has no
+// numeric prefix.
+func Major(v string) (int, bool) {
+	s := versionSegments(v)
+	if s == nil {
+		return 0, false
+	}
+	return s[0], true
 }
 
 // CompareVersions compares numeric version prefixes. ok is false when either

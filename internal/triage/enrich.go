@@ -10,6 +10,7 @@ func Enrich(pr *model.PR) {
 	t := parse.ParseTitle(pr.Title)
 	pr.Package, pr.PackageKey = t.Package, t.PackageKey
 	pr.SourceVersion, pr.TargetVersion, pr.Bump = t.Source, t.Target, t.Bump
+	pr.Directory = t.Directory
 	if pr.CheckRuns == nil {
 		pr.CheckRuns = []model.Check{}
 	}
