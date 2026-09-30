@@ -1,0 +1,73 @@
+{
+  "pr0": {
+    "nameWithOwner": "acme/api",
+    "mergeCommitAllowed": false,
+    "squashMergeAllowed": true,
+    "rebaseMergeAllowed": false,
+    "autoMergeAllowed": true,
+    "viewerDefaultMergeMethod": "SQUASH",
+    "pullRequest": {
+      "number": 12,
+      "title": "Bump lodash from 4.17.20 to 4.17.21",
+      "url": "https://github.com/acme/api/pull/12",
+      "body": "Bumps lodash.",
+      "state": "OPEN",
+      "isDraft": false,
+      "createdAt": "2026-09-20T10:00:00Z",
+      "updatedAt": "2026-09-29T10:00:00Z",
+      "headRefOid": "abc123",
+      "baseRefName": "main",
+      "mergeStateStatus": "BLOCKED",
+      "mergeable": "MERGEABLE",
+      "reviewDecision": "REVIEW_REQUIRED",
+      "author": {"__typename": "Bot", "login": "dependabot"},
+      "autoMergeRequest": null,
+      "reviews": {"nodes": [{"state": "APPROVED", "submittedAt": "2026-09-21T10:00:00Z"}]},
+      "reviewRequests": {"nodes": [
+        {"requestedReviewer": {"__typename": "Team", "combinedSlug": "acme/platform"}},
+        {"requestedReviewer": {"__typename": "User", "login": "octocat"}},
+        {"requestedReviewer": null}
+      ]},
+      "commits": {"nodes": [{"commit": {"statusCheckRollup": {"contexts": {"nodes": [
+        {"__typename": "CheckRun", "name": "test", "status": "COMPLETED", "conclusion": "FAILURE",
+         "detailsUrl": "https://github.com/acme/api/actions/runs/555/job/777", "databaseId": 777,
+         "isRequired": true, "checkSuite": {"workflowRun": {"databaseId": 555}}},
+        {"__typename": "StatusContext", "context": "ci/legacy", "state": "PENDING",
+         "targetUrl": "https://ci.example.com/1", "isRequired": false}
+      ]}}}}]}
+    }
+  },
+  "pr1": null,
+  "pr2": {
+    "nameWithOwner": "acme/web",
+    "mergeCommitAllowed": true,
+    "squashMergeAllowed": false,
+    "rebaseMergeAllowed": false,
+    "autoMergeAllowed": false,
+    "viewerDefaultMergeMethod": "MERGE",
+    "pullRequest": {
+      "number": 7,
+      "title": "chore(deps): update dependency react to v19.0.0",
+      "url": "https://github.com/acme/web/pull/7",
+      "body": "",
+      "state": "OPEN",
+      "isDraft": true,
+      "createdAt": "2026-09-22T10:00:00Z",
+      "updatedAt": "2026-09-22T10:00:00Z",
+      "headRefOid": "def456",
+      "baseRefName": "main",
+      "mergeStateStatus": "CLEAN",
+      "mergeable": "MERGEABLE",
+      "reviewDecision": null,
+      "author": {"__typename": "Bot", "login": "renovate"},
+      "autoMergeRequest": {"enabledAt": "2026-09-28T10:00:00Z"},
+      "reviews": {"nodes": []},
+      "reviewRequests": {"nodes": []},
+      "commits": {"nodes": [{"commit": {"statusCheckRollup": null}}]}
+    }
+  },
+  "pr3": {
+    "nameWithOwner": "acme/web",
+    "pullRequest": {"number": 9, "title": "x", "state": "OPEN", "commits": {"nodes": []}}
+  }
+}
