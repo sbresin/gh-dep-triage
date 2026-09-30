@@ -107,5 +107,6 @@ func (a *app) rootCmd() *cobra.Command {
 	f.StringVar(&a.opts.team, "team", "", "use review requests for a team (team or org/team) instead of you")
 	f.BoolVar(&a.opts.json, "json", false, "print a JSON envelope on stdout")
 	root.AddCommand(a.listCmd())
+	root.AddCommand(a.showCmd())
 	return root
 }

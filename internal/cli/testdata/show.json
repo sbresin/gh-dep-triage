@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "command": "show",
+  "viewer": "octocat",
+  "generatedAt": "2026-09-30T12:00:00Z",
+  "dryRun": false,
+  "data": {
+    "pr": {
+      "repo": "acme/web",
+      "number": 2,
+      "ref": "acme/web#2",
+      "title": "Bump lodash from 4.17.20 to 4.17.21",
+      "url": "https://github.com/acme/web/pull/2",
+      "author": "dependabot",
+      "createdAt": "2026-09-25T10:00:00Z",
+      "updatedAt": "2026-09-25T10:00:00Z",
+      "headOid": "sha2",
+      "baseRef": "main",
+      "mergeStateStatus": "BLOCKED",
+      "mergeable": "MERGEABLE",
+      "reviewDecision": "REVIEW_REQUIRED",
+      "autoMerge": false,
+      "requestedForReview": true,
+      "viewerApproved": false,
+      "requestedReviewers": [],
+      "package": "lodash",
+      "sourceVersion": "4.17.20",
+      "targetVersion": "4.17.21",
+      "bump": "patch",
+      "groupId": "group:lodash@4.17.21",
+      "checks": {
+        "total": 2,
+        "passed": 0,
+        "skipped": 0,
+        "failed": 2,
+        "pending": 0,
+        "failedNames": [
+          "test",
+          "ci/legacy"
+        ],
+        "pendingNames": []
+      },
+      "blockers": [
+        {
+          "code": "checks_failing",
+          "detail": "2 failing: test, ci/legacy",
+          "suggestedActions": [
+            {
+              "action": "rerun",
+              "command": "gh dep-triage rerun acme/web#2 --yes"
+            },
+            {
+              "action": "fix",
+              "command": "gh dep-triage show acme/web#2 --logs",
+              "checkout": "gh pr checkout 2 -R acme/web"
+            }
+          ]
+        }
+      ],
+      "status": "blocked"
+    },
+    "body": "<details>\n<summary>Release notes</summary>\n<p>Fixes prototype pollution.</p>\n</details>",
+    "releaseNotes": "<p>Fixes prototype pollution.</p>",
+    "checkRuns": [
+      {
+        "name": "test",
+        "kind": "check_run",
+        "status": "COMPLETED",
+        "conclusion": "FAILURE",
+        "state": "failed",
+        "required": false,
+        "url": "https://github.com/example/actions/runs/1/job/777",
+        "jobId": 777
+      },
+      {
+        "name": "ci/legacy",
+        "kind": "status",
+        "conclusion": "ERROR",
+        "state": "failed",
+        "required": false,
+        "url": "https://ci.example.com/1"
+      }
+    ],
+    "files": [
+      {
+        "path": "package.json",
+        "status": "modified",
+        "additions": 1,
+        "deletions": 1
+      },
+      {
+        "path": "package-lock.json",
+        "status": "modified",
+        "additions": 5,
+        "deletions": 5
+      }
+    ],
+    "logs": [
+      {
+        "check": "test",
+        "jobId": 777,
+        "log": "step 1\nstep 2\nFAIL: TestX"
+      },
+      {
+        "check": "ci/legacy",
+        "error": "not a GitHub Actions job; logs unavailable"
+      }
+    ],
+    "checkout": "gh pr checkout 2 -R acme/web"
+  },
+  "warnings": [],
+  "errors": []
+}
