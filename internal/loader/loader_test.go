@@ -92,7 +92,7 @@ func TestLoadBatchesWithinWorkerLimit(t *testing.T) {
 		sizes = append(sizes, len(b))
 	}
 	sort.Ints(sizes)
-	if diff := cmp.Diff([]int{10, 25, 25}, sizes); diff != "" {
+	if diff := cmp.Diff([]int{10, 10, 10, 10, 10, 10}, sizes); diff != "" {
 		t.Errorf("batch sizes (-want +got):\n%s", diff)
 	}
 	if len(snap.PRs()) != 60 {
@@ -112,14 +112,14 @@ func TestLoadBatchFailureBecomesWarnings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(snap.PRs()) != 24 {
-		t.Errorf("loaded %d PRs, want 24", len(snap.PRs()))
+	if len(snap.PRs()) != 19 {
+		t.Errorf("loaded %d PRs, want 19", len(snap.PRs()))
 	}
 	codes := map[string]int{}
 	for _, w := range snap.Warnings {
 		codes[w.Code]++
 	}
-	if codes["fetch_failed"] != 5 || codes["not_found"] != 1 {
+	if codes["fetch_failed"] != 10 || codes["not_found"] != 1 {
 		t.Errorf("warnings = %+v", snap.Warnings)
 	}
 }

@@ -7,7 +7,7 @@ import (
 	"github.com/sbresin/gh-dep-triage/internal/model"
 )
 
-const BatchSize = 25
+const BatchSize = 10
 
 const searchBase = "is:pr is:open draft:false archived:false"
 
