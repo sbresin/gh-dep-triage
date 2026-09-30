@@ -111,20 +111,20 @@ func tailLines(s string, n int) string {
 
 func writeShow(w io.Writer, d showData) {
 	pr := d.PR
-	fmt.Fprintf(w, "%s  %s  [%s]  %s\n", pr.Ref, updateLabel(pr), pr.Bump, pr.Status)
-	fmt.Fprintf(w, "URL:      %s\n", pr.URL)
-	fmt.Fprintf(w, "Group:    %s\n", dash(pr.GroupID))
-	fmt.Fprintf(w, "Head:     %s\n", pr.HeadOid)
+	fmt.Fprintf(w, "%s  %s  [%s]  %s\n", sanitize(pr.Ref), updateLabel(pr), pr.Bump, pr.Status)
+	fmt.Fprintf(w, "URL:      %s\n", sanitize(pr.URL))
+	fmt.Fprintf(w, "Group:    %s\n", sanitize(dash(pr.GroupID)))
+	fmt.Fprintf(w, "Head:     %s\n", sanitize(pr.HeadOid))
 	fmt.Fprintf(w, "Checks:   %s\n", checksLabel(pr.Checks))
-	fmt.Fprintf(w, "Checkout: %s\n", d.Checkout)
+	fmt.Fprintf(w, "Checkout: %s\n", sanitize(d.Checkout))
 	if len(pr.Blockers) > 0 {
 		fmt.Fprintln(w, "\nBlockers:")
 		for _, b := range pr.Blockers {
-			fmt.Fprintf(w, "  - %s: %s\n", b.Code, b.Detail)
+			fmt.Fprintf(w, "  - %s: %s\n", b.Code, sanitize(b.Detail))
 			for _, act := range b.SuggestedActions {
-				fmt.Fprintf(w, "      %s: %s\n", act.Action, dash(act.Command))
+				fmt.Fprintf(w, "      %s: %s\n", act.Action, sanitize(dash(act.Command)))
 				if act.Checkout != "" {
-					fmt.Fprintf(w, "      checkout: %s\n", act.Checkout)
+					fmt.Fprintf(w, "      checkout: %s\n", sanitize(act.Checkout))
 				}
 			}
 		}
@@ -132,18 +132,18 @@ func writeShow(w io.Writer, d showData) {
 	if len(d.Files) > 0 {
 		fmt.Fprintln(w, "\nFiles:")
 		for _, f := range d.Files {
-			fmt.Fprintf(w, "  %s (+%d -%d)\n", f.Path, f.Additions, f.Deletions)
+			fmt.Fprintf(w, "  %s (+%d -%d)\n", sanitize(f.Path), f.Additions, f.Deletions)
 		}
 	}
 	if d.ReleaseNotes != "" {
-		fmt.Fprintf(w, "\nRelease notes:\n%s\n", d.ReleaseNotes)
+		fmt.Fprintf(w, "\nRelease notes:\n%s\n", sanitize(d.ReleaseNotes))
 	}
 	for _, l := range d.Logs {
-		fmt.Fprintf(w, "\nLog: %s\n", l.Check)
+		fmt.Fprintf(w, "\nLog: %s\n", sanitize(l.Check))
 		if l.Error != "" {
-			fmt.Fprintf(w, "  (%s)\n", l.Error)
+			fmt.Fprintf(w, "  (%s)\n", sanitize(l.Error))
 		} else {
-			fmt.Fprintln(w, l.Log)
+			fmt.Fprintln(w, sanitize(l.Log))
 		}
 	}
 }

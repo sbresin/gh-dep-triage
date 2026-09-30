@@ -97,7 +97,7 @@ func (a *app) execute(ctx context.Context, args []string) int {
 		return ExitError
 	}
 	if err != nil {
-		fmt.Fprintln(a.stderr, "error:", err)
+		fmt.Fprintln(a.stderr, "error:", sanitize(err.Error()))
 		return ExitError
 	}
 	return ExitOK

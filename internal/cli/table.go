@@ -27,11 +27,11 @@ func truncate(s string, n int) string {
 func updateLabel(pr *model.PR) string {
 	switch {
 	case pr.TargetVersion == "":
-		return truncate(pr.Title, 60)
+		return truncate(sanitize(pr.Title), 60)
 	case pr.SourceVersion != "":
-		return fmt.Sprintf("%s %s -> %s", pr.Package, pr.SourceVersion, pr.TargetVersion)
+		return sanitize(fmt.Sprintf("%s %s -> %s", pr.Package, pr.SourceVersion, pr.TargetVersion))
 	default:
-		return fmt.Sprintf("%s -> %s", pr.Package, pr.TargetVersion)
+		return sanitize(fmt.Sprintf("%s -> %s", pr.Package, pr.TargetVersion))
 	}
 }
 
@@ -66,7 +66,7 @@ func writeListTable(w io.Writer, groups []*model.Group) {
 	for _, g := range groups {
 		for _, pr := range g.PRs {
 			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-				pr.Status, pr.Ref, updateLabel(pr), pr.Bump, checksLabel(pr.Checks), blockerCodes(pr), dash(pr.GroupID))
+				pr.Status, sanitize(pr.Ref), updateLabel(pr), pr.Bump, checksLabel(pr.Checks), blockerCodes(pr), sanitize(dash(pr.GroupID)))
 		}
 	}
 	tw.Flush()
