@@ -108,6 +108,18 @@ func TestFixActionCarriesCommands(t *testing.T) {
 	}
 }
 
+func TestRequestReviewCommandIsShellSafe(t *testing.T) {
+	pr := testPR("acme/api", 1, lodash, func(p *model.PR) {
+		p.ReviewDecision, p.MergeStateStatus = "REVIEW_REQUIRED", "BLOCKED"
+		p.ViewerReviews = []model.Review{{State: "APPROVED", SubmittedAt: testNow}}
+	})
+	diagnose(pr)
+	want := "gh dep-triage request-review acme/api#1 --reviewer REVIEWER --yes"
+	if got := pr.Blockers[0].SuggestedActions[0].Command; got != want {
+		t.Errorf("command = %q, want %q", got, want)
+	}
+}
+
 func TestFlakyWhenSameCheckPassesInGroup(t *testing.T) {
 	failing := testPR("acme/web", 2, lodash, func(p *model.PR) {
 		p.CheckRuns = []model.Check{checkRun("test", "COMPLETED", "FAILURE")}

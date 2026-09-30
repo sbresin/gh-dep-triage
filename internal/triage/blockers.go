@@ -65,7 +65,7 @@ func diagnosePR(pr *model.PR, passed map[string]map[string]bool, newer map[strin
 	}
 	if pr.ReviewDecision == "REVIEW_REQUIRED" && pr.ViewerApproved {
 		add(model.BlockerReviewRequired, "Approved by you; another approving review is required",
-			model.SuggestedAction{Action: "request-review", Command: command("request-review", pr.Ref, "--reviewer <user|org/team>")})
+			model.SuggestedAction{Action: "request-review", Command: command("request-review", pr.Ref, "--reviewer REVIEWER")})
 	}
 	if pr.ReviewDecision == "CHANGES_REQUESTED" {
 		add(model.BlockerChangesRequested, "Changes were requested")
