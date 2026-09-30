@@ -73,6 +73,9 @@ func Load(ctx context.Context, c github.Client, o Options) (*model.Snapshot, err
 	cands := mergeCandidates(requested, reviewed, o.Bots)
 	o.Progress("Fetching details for %d PRs…", len(cands))
 	prs, warnings := fetchAll(ctx, c, viewer, cands, o.Workers)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	byRef := map[string]candidate{}
 	for _, cd := range cands {
@@ -152,10 +155,18 @@ func fetchAll(ctx context.Context, c github.Client, viewer string, cands []candi
 		warnings = []model.Problem{}
 		sem      = make(chan struct{}, workers)
 	)
+dispatch:
 	for start := 0; start < len(refs); start += github.BatchSize {
+		if ctx.Err() != nil {
+			break
+		}
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
+			break dispatch
+		}
 		batch := refs[start:min(start+github.BatchSize, len(refs))]
 		wg.Add(1)
-		sem <- struct{}{}
 		go func() {
 			defer wg.Done()
 			defer func() { <-sem }()

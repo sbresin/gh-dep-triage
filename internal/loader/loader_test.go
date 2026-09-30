@@ -124,6 +124,22 @@ func TestLoadBatchFailureBecomesWarnings(t *testing.T) {
 	}
 }
 
+func TestLoadCancelledReturnsError(t *testing.T) {
+	f := githubtest.NewFake("octocat")
+	for i := 1; i <= 30; i++ {
+		f.Add(githubtest.NewPR("acme/api", i, fmt.Sprintf("Bump pkg%d from 1.0.0 to 1.0.1", i)), true, false)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	snap, err := Load(ctx, f, opts())
+	if !errors.Is(err, context.Canceled) || snap != nil {
+		t.Errorf("snap=%v err=%v, want context.Canceled", snap, err)
+	}
+	if len(f.Batches) != 0 {
+		t.Errorf("dispatched %d batches after cancellation", len(f.Batches))
+	}
+}
+
 func TestLoadTeamQuery(t *testing.T) {
 	f := githubtest.NewFake("octocat")
 	o := opts()
