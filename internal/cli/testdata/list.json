@@ -1,0 +1,215 @@
+{
+  "schemaVersion": 1,
+  "command": "list",
+  "viewer": "octocat",
+  "generatedAt": "2026-09-30T12:00:00Z",
+  "dryRun": false,
+  "data": {
+    "groups": [
+      {
+        "id": "group:eslint@9.1.0",
+        "package": "eslint",
+        "targetVersion": "9.1.0",
+        "bump": "major",
+        "prs": [
+          {
+            "repo": "acme/api",
+            "number": 4,
+            "ref": "acme/api#4",
+            "title": "Bump eslint from 8.57.0 to 9.1.0",
+            "url": "https://github.com/acme/api/pull/4",
+            "author": "dependabot",
+            "createdAt": "2026-09-25T10:00:00Z",
+            "updatedAt": "2026-09-25T10:00:00Z",
+            "headOid": "sha4",
+            "baseRef": "main",
+            "mergeStateStatus": "BLOCKED",
+            "mergeable": "MERGEABLE",
+            "reviewDecision": "APPROVED",
+            "autoMerge": true,
+            "requestedForReview": false,
+            "viewerApproved": true,
+            "requestedReviewers": [],
+            "package": "eslint",
+            "sourceVersion": "8.57.0",
+            "targetVersion": "9.1.0",
+            "bump": "major",
+            "groupId": "group:eslint@9.1.0",
+            "checks": {
+              "total": 1,
+              "passed": 0,
+              "skipped": 0,
+              "failed": 0,
+              "pending": 1,
+              "failedNames": [],
+              "pendingNames": [
+                "test"
+              ]
+            },
+            "blockers": [],
+            "status": "merging"
+          }
+        ]
+      },
+      {
+        "id": "group:lodash@4.17.21",
+        "package": "lodash",
+        "targetVersion": "4.17.21",
+        "bump": "patch",
+        "prs": [
+          {
+            "repo": "acme/api",
+            "number": 1,
+            "ref": "acme/api#1",
+            "title": "Bump lodash from 4.17.20 to 4.17.21",
+            "url": "https://github.com/acme/api/pull/1",
+            "author": "dependabot",
+            "createdAt": "2026-09-25T10:00:00Z",
+            "updatedAt": "2026-09-25T10:00:00Z",
+            "headOid": "sha1",
+            "baseRef": "main",
+            "mergeStateStatus": "BLOCKED",
+            "mergeable": "MERGEABLE",
+            "reviewDecision": "REVIEW_REQUIRED",
+            "autoMerge": false,
+            "requestedForReview": true,
+            "viewerApproved": false,
+            "requestedReviewers": [],
+            "package": "lodash",
+            "sourceVersion": "4.17.20",
+            "targetVersion": "4.17.21",
+            "bump": "patch",
+            "groupId": "group:lodash@4.17.21",
+            "checks": {
+              "total": 1,
+              "passed": 1,
+              "skipped": 0,
+              "failed": 0,
+              "pending": 0,
+              "failedNames": [],
+              "pendingNames": []
+            },
+            "blockers": [],
+            "status": "ready"
+          },
+          {
+            "repo": "acme/web",
+            "number": 2,
+            "ref": "acme/web#2",
+            "title": "Bump lodash from 4.17.20 to 4.17.21",
+            "url": "https://github.com/acme/web/pull/2",
+            "author": "dependabot",
+            "createdAt": "2026-09-25T10:00:00Z",
+            "updatedAt": "2026-09-25T10:00:00Z",
+            "headOid": "sha2",
+            "baseRef": "main",
+            "mergeStateStatus": "BLOCKED",
+            "mergeable": "MERGEABLE",
+            "reviewDecision": "REVIEW_REQUIRED",
+            "autoMerge": false,
+            "requestedForReview": true,
+            "viewerApproved": false,
+            "requestedReviewers": [],
+            "package": "lodash",
+            "sourceVersion": "4.17.20",
+            "targetVersion": "4.17.21",
+            "bump": "patch",
+            "groupId": "group:lodash@4.17.21",
+            "checks": {
+              "total": 2,
+              "passed": 0,
+              "skipped": 0,
+              "failed": 2,
+              "pending": 0,
+              "failedNames": [
+                "test",
+                "ci/legacy"
+              ],
+              "pendingNames": []
+            },
+            "blockers": [
+              {
+                "code": "checks_failing",
+                "detail": "2 failing: test, ci/legacy",
+                "suggestedActions": [
+                  {
+                    "action": "rerun",
+                    "command": "gh dep-triage rerun acme/web#2 --yes"
+                  },
+                  {
+                    "action": "fix",
+                    "command": "gh dep-triage show acme/web#2 --logs",
+                    "checkout": "gh pr checkout 2 -R acme/web"
+                  }
+                ]
+              }
+            ],
+            "status": "blocked"
+          }
+        ]
+      },
+      {
+        "id": "group:react@19.0.0",
+        "package": "react",
+        "targetVersion": "19.0.0",
+        "bump": "unknown",
+        "prs": [
+          {
+            "repo": "acme/api",
+            "number": 3,
+            "ref": "acme/api#3",
+            "title": "chore(deps): update dependency react to v19.0.0",
+            "url": "https://github.com/acme/api/pull/3",
+            "author": "renovate",
+            "createdAt": "2026-09-25T10:00:00Z",
+            "updatedAt": "2026-09-25T10:00:00Z",
+            "headOid": "sha3",
+            "baseRef": "main",
+            "mergeStateStatus": "BEHIND",
+            "mergeable": "MERGEABLE",
+            "reviewDecision": "REVIEW_REQUIRED",
+            "autoMerge": false,
+            "requestedForReview": true,
+            "viewerApproved": false,
+            "requestedReviewers": [],
+            "package": "react",
+            "sourceVersion": "",
+            "targetVersion": "19.0.0",
+            "bump": "unknown",
+            "groupId": "group:react@19.0.0",
+            "checks": {
+              "total": 0,
+              "passed": 0,
+              "skipped": 0,
+              "failed": 0,
+              "pending": 0,
+              "failedNames": [],
+              "pendingNames": []
+            },
+            "blockers": [
+              {
+                "code": "behind_base",
+                "detail": "Branch is behind main",
+                "suggestedActions": [
+                  {
+                    "action": "rebase",
+                    "command": "gh dep-triage rebase acme/api#3 --yes"
+                  }
+                ]
+              }
+            ],
+            "status": "blocked"
+          }
+        ]
+      }
+    ],
+    "counts": {
+      "ready": 1,
+      "merging": 1,
+      "blocked": 2,
+      "total": 4
+    }
+  },
+  "warnings": [],
+  "errors": []
+}
