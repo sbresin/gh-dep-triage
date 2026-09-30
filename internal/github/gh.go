@@ -42,7 +42,7 @@ func New() (*GH, error) {
 func (c *GH) Viewer(ctx context.Context) (string, error) {
 	var resp struct{ Viewer struct{ Login string } }
 	if err := c.gql.DoWithContext(ctx, `query { viewer { login } }`, nil, &resp); err != nil {
-		return "", err
+		return "", mapAuthError(err)
 	}
 	return resp.Viewer.Login, nil
 }
@@ -111,4 +111,14 @@ func (c *GH) JobLog(ctx context.Context, repo string, jobID int64) (string, erro
 	defer resp.Body.Close()
 	b, err := io.ReadAll(io.LimitReader(resp.Body, maxLogBytes))
 	return string(b), err
+}
+
+// mapAuthError turns an HTTP 401 (expired or revoked token) into
+// ErrNotAuthenticated, keeping the original error in the chain.
+func mapAuthError(err error) error {
+	var httpErr *api.HTTPError
+	if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusUnauthorized {
+		return fmt.Errorf("%w: %w", ErrNotAuthenticated, err)
+	}
+	return err
 }
