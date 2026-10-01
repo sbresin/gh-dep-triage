@@ -1,8 +1,11 @@
 package tui
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"slices"
+	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -242,6 +245,7 @@ func (m Model) showResults() Model {
 				items = append(items, r)
 			}
 		}
+		slices.SortStableFunc(items, func(a, b model.Result) int { return compareRefs(a.Ref, b.Ref) })
 		rows = append(rows, listRow{header: true, text: fmt.Sprintf("%s (%d)", s.title, len(items)), style: s.style})
 		if len(items) == 0 {
 			rows = append(rows, listRow{header: true, text: "  none", style: styleDim})
@@ -254,6 +258,24 @@ func (m Model) showResults() Model {
 	m.list, m.screen = newListView(rows), screenResults
 	m.status = "o opens the focused PR. d shows the description. q exits."
 	return m
+}
+
+// compareRefs orders owner/repo#n refs by repo, then numerically by number.
+func compareRefs(a, b string) int {
+	split := func(ref string) (string, int) {
+		i := strings.LastIndex(ref, "#")
+		if i < 0 {
+			return ref, 0
+		}
+		n, _ := strconv.Atoi(ref[i+1:])
+		return ref[:i], n
+	}
+	ra, na := split(a)
+	rb, nb := split(b)
+	if c := strings.Compare(ra, rb); c != 0 {
+		return c
+	}
+	return cmp.Compare(na, nb)
 }
 
 func (m Model) updateResults(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {

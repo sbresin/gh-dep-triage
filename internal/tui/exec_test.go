@@ -243,6 +243,26 @@ func TestTinyTerminalMidRunIgnoresQuit(t *testing.T) {
 	}
 }
 
+func TestResultsSortedByRepoAndNumber(t *testing.T) {
+	m := newTest(fixture(), Deps{})
+	for _, ref := range []string{"acme/web#2", "acme/api#10", "acme/api#9", "acme/api#1"} {
+		m.results = append(m.results, model.Result{Ref: ref, Status: model.ResultSuccess, Steps: []string{"approved"}})
+	}
+	m.results = append(m.results, model.Result{Ref: "acme/web#1", Status: model.ResultFailed, Message: "x"},
+		model.Result{Ref: "acme/api#5", Status: model.ResultFailed, Message: "y"})
+	m = m.showResults()
+	var got []string
+	for _, r := range m.list.rows {
+		if r.ref != "" {
+			got = append(got, r.ref)
+		}
+	}
+	want := []string{"acme/api#5", "acme/web#1", "acme/api#1", "acme/api#9", "acme/api#10", "acme/web#2"}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("result order (-want +got):\n%s", diff)
+	}
+}
+
 func TestResultsSections(t *testing.T) {
 	m := newTest(fixture(), Deps{})
 	m.results = []model.Result{
