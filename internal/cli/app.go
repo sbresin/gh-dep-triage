@@ -10,11 +10,14 @@ import (
 	"os/signal"
 	"time"
 
+	"github.com/cli/go-gh/v2/pkg/browser"
+	"github.com/cli/go-gh/v2/pkg/term"
 	"github.com/spf13/cobra"
 	"github.com/sbresin/gh-dep-triage/internal/config"
 	"github.com/sbresin/gh-dep-triage/internal/github"
 	"github.com/sbresin/gh-dep-triage/internal/loader"
 	"github.com/sbresin/gh-dep-triage/internal/model"
+	"github.com/sbresin/gh-dep-triage/internal/tui"
 )
 
 // version is overridden at build time via -ldflags.
@@ -48,6 +51,9 @@ type app struct {
 	newClient func() (github.Client, error)
 	now       func() time.Time
 	sleep     func(context.Context, time.Duration) error
+	isTTY     func() bool
+	browse    func(url string) error
+	runTUI    func(ctx context.Context, snap *model.Snapshot, deps tui.Deps) (int, error)
 }
 
 func Execute() int {
@@ -67,19 +73,31 @@ func Execute() int {
 			}
 			return c, nil
 		},
+		isTTY:  term.FromEnv().IsTerminalOutput,
+		browse: browser.New("", io.Discard, io.Discard).Browse,
+		runTUI: func(ctx context.Context, s *model.Snapshot, d tui.Deps) (int, error) {
+			return tui.Run(ctx, s, d, os.Stdin, os.Stdout)
+		},
 	}
 	return a.execute(ctx, os.Args[1:])
 }
 
 func (a *app) loadSnapshot(ctx context.Context) (github.Client, *model.Snapshot, error) {
+	return a.loadSnapshotWith(ctx, true)
+}
+
+// loadSnapshotWith loads a snapshot; progress lines go to stderr only when
+// progress is set (the TUI reloads silently).
+func (a *app) loadSnapshotWith(ctx context.Context, progress bool) (github.Client, *model.Snapshot, error) {
 	c, err := a.newClient()
 	if err != nil {
 		return nil, nil, err
 	}
-	snap, err := loader.Load(ctx, c, loader.Options{
-		Limit: a.opts.limit, Workers: a.opts.workers, Team: a.opts.team, Bots: a.cfg.Bots, Now: a.now,
-		Progress: func(format string, args ...any) { fmt.Fprintf(a.stderr, format+"\n", args...) },
-	})
+	opts := loader.Options{Limit: a.opts.limit, Workers: a.opts.workers, Team: a.opts.team, Bots: a.cfg.Bots, Now: a.now}
+	if progress {
+		opts.Progress = func(format string, args ...any) { fmt.Fprintf(a.stderr, format+"\n", args...) }
+	}
+	snap, err := loader.Load(ctx, c, opts)
 	return c, snap, err
 }
 
@@ -166,6 +184,12 @@ func (a *app) rootCmd() *cobra.Command {
 	f.StringVar(&a.opts.team, "team", "", "use review requests for a team (team or org/team) instead of you")
 	f.BoolVar(&a.opts.json, "json", false, "print a JSON envelope on stdout")
 	f.StringVar(&a.opts.config, "config", "", "config file (default $XDG_CONFIG_HOME/gh-dep-triage/config.yml)")
+	root.RunE = func(cmd *cobra.Command, _ []string) error {
+		if a.opts.json || a.isTTY == nil || !a.isTTY() {
+			return cmd.Help()
+		}
+		return a.tui(cmd)
+	}
 	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return &usageError{msg: err.Error()} })
 	root.AddCommand(a.listCmd())
 	root.AddCommand(a.showCmd())
