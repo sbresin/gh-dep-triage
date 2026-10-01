@@ -345,6 +345,13 @@ func (q *Queue) Events() <-chan Event { return q.events }
 // every queued job still runs. Close returns once nothing is running; it is
 // safe to call more than once.
 func (q *Queue) Close(cancelQueued bool) {
+	q.Stop(cancelQueued)
+	<-q.done
+}
+
+// Stop is Close without waiting: it returns once the queue refuses new jobs
+// and, with cancelQueued, queued jobs are cancelled.
+func (q *Queue) Stop(cancelQueued bool) {
 	q.do(func(s *state) {
 		s.closing = true
 		if cancelQueued {
@@ -360,7 +367,6 @@ func (q *Queue) Close(cancelQueued bool) {
 		}
 		q.settle(s)
 	})
-	<-q.done
 }
 
 // schedule starts queued jobs in submission order, skipping repos that are

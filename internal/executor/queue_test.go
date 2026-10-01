@@ -221,6 +221,35 @@ func TestCloseCancelsQueued(t *testing.T) {
 	}
 }
 
+// Stop cancels at once, without waiting for the running job.
+func TestStopDoesNotWait(t *testing.T) {
+	f := repoFake("acme/api#1", "acme/api#2")
+	g := &gate{Fake: f, release: make(chan struct{})}
+	q := NewQueue(context.Background(), g, opts(&sleeps{}))
+	events := collect(q)
+	_, _ = q.Submit("approve", enriched(f, "acme/api#1"))
+	_, _ = q.Submit("approve", enriched(f, "acme/api#2"))
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(time.Millisecond) {
+		g.mu.Lock()
+		n := g.inFlight
+		g.mu.Unlock()
+		if n == 1 {
+			break
+		}
+	}
+	q.Stop(true)
+	if jobs := q.Jobs(); jobs[0].State != JobRunning || jobs[1].State != JobCancelled {
+		t.Errorf("after Stop: %v, %v", jobs[0].State, jobs[1].State)
+	}
+	if _, err := q.Submit("merge", enriched(f, "acme/api#1")); !errors.Is(err, ErrClosed) {
+		t.Errorf("Submit after Stop: %v", err)
+	}
+	close(g.release)
+	if evs := <-events; evs[len(evs)-1].Kind != EventClosed {
+		t.Errorf("last event %v", evs[len(evs)-1].Kind)
+	}
+}
+
 func TestParentCancelClosesQueue(t *testing.T) {
 	f := repoFake("acme/api#1")
 	ctx, cancel := context.WithCancel(context.Background())

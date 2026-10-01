@@ -19,7 +19,7 @@ type Queue interface {
 	ClearFinished()
 	Jobs() []executor.Job
 	Events() <-chan executor.Event
-	Close(cancelQueued bool)
+	Stop(cancelQueued bool)
 }
 
 var _ Queue = (*executor.Queue)(nil)

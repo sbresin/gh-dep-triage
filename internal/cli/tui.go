@@ -31,7 +31,7 @@ func (a *app) tui(cmd *cobra.Command) error {
 		who = "team " + a.opts.team
 	}
 	rules := policy.Rules{Bots: a.cfg.Bots}
-	// The TUI decides when the queue stops (Close), so a Ctrl-C that cancels
+	// The TUI decides when the queue stops (Stop), so a Ctrl-C that cancels
 	// cmd.Context() must not kill running jobs behind its back.
 	q := executor.NewQueue(context.WithoutCancel(cmd.Context()), client,
 		executor.Options{Viewer: snap.Viewer, Rules: rules, Sleep: a.sleep})

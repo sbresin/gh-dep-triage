@@ -78,7 +78,7 @@ func TestRootWithTTYStartsTUI(t *testing.T) {
 	if diff := cmp.Diff([]string{"approve acme/api#1 sha1", "merge acme/api#1 sha1 SQUASH"}, f.Calls); diff != "" {
 		t.Errorf("queue wiring (-want +got):\n%s", diff)
 	}
-	q.Close(false)
+	q.Stop(false)
 	for range q.Events() {
 	}
 }

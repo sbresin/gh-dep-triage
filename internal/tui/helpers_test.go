@@ -113,7 +113,7 @@ func (f *fakeQueue) ClearFinished() {
 
 func (f *fakeQueue) Jobs() []executor.Job          { return append([]executor.Job(nil), f.jobs...) }
 func (f *fakeQueue) Events() <-chan executor.Event { return f.events }
-func (f *fakeQueue) Close(cancelQueued bool)       { f.closed = append(f.closed, cancelQueued) }
+func (f *fakeQueue) Stop(cancelQueued bool)        { f.closed = append(f.closed, cancelQueued) }
 
 // set moves job id to state and returns the event the real queue would send.
 func (f *fakeQueue) set(id executor.JobID, state executor.JobState, step string, r model.Result) executor.Event {

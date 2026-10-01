@@ -92,9 +92,9 @@ func TestQuitCancel(t *testing.T) {
 	if isQuit(cmd) || !m.cancelling || !strings.Contains(plain(m), "cancelling…") {
 		t.Fatalf("c starts cancelling:\n%s", plain(m))
 	}
-	// isQuit above already ran the cmd, i.e. Queue.Close(true).
+	// c already called Queue.Stop(true).
 	if diff := cmp.Diff([]bool{true}, fq.closed); diff != "" {
-		t.Errorf("Close calls (-want +got):\n%s", diff)
+		t.Errorf("Stop calls (-want +got):\n%s", diff)
 	}
 	m, cmd = step(m, queueMsg{ev: executor.Event{Kind: executor.EventClosed}})
 	if !isQuit(cmd) || m.Interrupted() {
@@ -108,9 +108,9 @@ func TestCtrlCWithPendingCancelsThenForces(t *testing.T) {
 	if isQuit(cmd) || !m.cancelling || !m.Interrupted() {
 		t.Fatalf("first ctrl+c cancels: cancelling=%v interrupted=%v", m.cancelling, m.Interrupted())
 	}
-	// isQuit above already ran the cmd, i.e. Queue.Close(true).
+	// ctrl+c already called Queue.Stop(true).
 	if len(fq.closed) != 1 || !fq.closed[0] {
-		t.Errorf("Close(true) expected, got %v", fq.closed)
+		t.Errorf("Stop(true) expected, got %v", fq.closed)
 	}
 	m, cmd = press(m, "ctrl+c")
 	if !isQuit(cmd) || !m.forced {
@@ -159,8 +159,7 @@ func TestSubmitWhileCancellingShowsError(t *testing.T) {
 	m := newTest(snapshot(append(fixture().PRs(), ops)...), Deps{Queue: fq})
 	m, _ = press(m, "j", "j", "space", "c", "y")
 	m = deliver(m, fq.set(1, executor.JobRunning, "approving", model.Result{}))
-	m, cmd := press(m, "ctrl+c")
-	_ = cmd() // Close(true): the queue now refuses new jobs
+	m, _ = press(m, "ctrl+c") // Stop(true): the queue now refuses new jobs
 	m, _ = press(m, "j")
 	if r := m.rows()[m.cursor]; r.pr == nil || r.pr.Ref != "acme/ops#9" {
 		t.Fatalf("cursor on %+v", r)

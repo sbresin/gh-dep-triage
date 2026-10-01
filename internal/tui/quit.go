@@ -59,16 +59,14 @@ func (m Model) interrupt(press bool) (tea.Model, tea.Cmd) {
 	return m.startCancel()
 }
 
-// startCancel closes the queue with cancel; the model quits on the Closed
-// event, which comes after every Finished event.
+// startCancel stops the queue with cancel before returning, so no queued job
+// can start and no running one can reach its next mutation afterwards; the
+// model quits on the Closed event, which comes after every Finished event.
 func (m Model) startCancel() (tea.Model, tea.Cmd) {
 	m.cancelling, m.quitWhenIdle, m.popup = true, false, popupNone
 	m.status = "Cancelling queued jobs; quitting once running ones finish. ctrl+c again quits immediately."
-	q := m.deps.Queue
-	return m, func() tea.Msg {
-		q.Close(true)
-		return nil
-	}
+	m.deps.Queue.Stop(true)
+	return m, nil
 }
 
 func (m Model) updateQuit(k string) (tea.Model, tea.Cmd) {

@@ -76,7 +76,7 @@ type Model struct {
 	paused  bool
 
 	quitWhenIdle bool // w in the quit popup
-	cancelling   bool // Close(true) requested; quit on the Closed event
+	cancelling   bool // Stop(true) called; quit on the Closed event
 	presses      int  // ctrl+c presses and signals
 	forced       bool // quit while jobs were still running
 
