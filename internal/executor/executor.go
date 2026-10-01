@@ -196,6 +196,14 @@ func (e *executor) merge(ctx context.Context, t plan.Task) model.Result {
 	if pr.MergeQueue {
 		return finish(r, model.ResultSkipped, model.ReasonMergeQueue, "the base branch uses a merge queue, which is not supported")
 	}
+	// Don't approve when the merge would certainly be skipped. BLOCKED is not
+	// pre-skipped: the approval may unblock it.
+	if pr.MergeStateStatus == "DIRTY" {
+		return finish(r, model.ResultSkipped, model.ReasonNotMergeable, "merge conflicts with "+pr.BaseRef)
+	}
+	if MergeMethod(pr.RepoSettings) == "" {
+		return finish(r, model.ResultSkipped, model.ReasonNoMergeMethod, "the repo allows no merge method")
+	}
 	cur := pr
 	refetch := pr.MergeStateStatus == "UNKNOWN"
 	if !pr.ViewerApproved {

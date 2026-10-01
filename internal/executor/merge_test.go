@@ -124,9 +124,8 @@ func TestMergeNotMergeableCases(t *testing.T) {
 			p.MergeStateStatus = "BLOCKED"
 			p.RepoSettings.AutoMergeAllowed = false
 		}, model.ReasonNotMergeable},
-		{"conflicts", func(p *model.PR) { approved(p); p.MergeStateStatus = "DIRTY" }, model.ReasonNotMergeable},
-		{"no merge method", func(p *model.PR) {
-			approved(p)
+		{"conflicts, not yet approved", func(p *model.PR) { p.MergeStateStatus = "DIRTY" }, model.ReasonNotMergeable},
+		{"no merge method, not yet approved", func(p *model.PR) {
 			p.MergeStateStatus = "CLEAN"
 			p.RepoSettings = model.RepoSettings{AutoMergeAllowed: true}
 		}, model.ReasonNoMergeMethod},
