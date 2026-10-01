@@ -76,6 +76,17 @@ func (m Model) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			break
 		}
 		return m.startConfirm()
+	case "g":
+		if m.reloading {
+			m.status = "Already reloading..."
+			break
+		}
+		m.reloading, m.status = true, "Reloading..."
+		load, ctx := m.deps.Load, m.ctx
+		return m, func() tea.Msg {
+			s, err := load(ctx)
+			return reloadedMsg{snap: s, err: err}
+		}
 	}
 	m.fixScroll()
 	return m, nil

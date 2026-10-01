@@ -52,6 +52,7 @@ type Model struct {
 	screen        screen
 	status        string
 	interrupted   bool
+	reloading     bool
 
 	sortMode string
 	expanded map[string]bool
@@ -74,6 +75,11 @@ type Model struct {
 	logs       []string
 	results    []model.Result
 	total      int
+}
+
+type reloadedMsg struct {
+	snap *model.Snapshot
+	err  error
 }
 
 func New(ctx context.Context, snap *model.Snapshot, deps Deps) Model {
@@ -118,6 +124,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, waitFor(m.ch)
 	case execDoneMsg:
 		m.finish("")
+		return m, nil
+	case reloadedMsg:
+		m.reloading = false
+		if msg.err != nil {
+			m.status = "Reload failed: " + msg.err.Error()
+			return m, nil
+		}
+		m.snap = msg.snap
+		for ref := range m.selected {
+			if pr := m.findPR(ref); pr == nil || !selectable(pr) {
+				delete(m.selected, ref)
+			}
+		}
+		m.fixScroll()
+		m.status = fmt.Sprintf("Reloaded %d PRs.", len(m.snap.PRs()))
+		if n := len(m.snap.Warnings); n > 0 {
+			m.status += fmt.Sprintf(" %d warning(s).", n)
+		}
 		return m, nil
 	case tea.KeyPressMsg:
 		if msg.String() == "ctrl+c" && m.screen != screenProgress {
