@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -35,6 +36,49 @@ func TestReloadPrunesSelection(t *testing.T) {
 	}
 	if m.reloading || m.status != "Reloaded 3 PRs. 1 warning(s)." || len(m.snap.PRs()) != 3 || loads != 1 {
 		t.Errorf("reloading=%v status=%q prs=%d loads=%d", m.reloading, m.status, len(m.snap.PRs()), loads)
+	}
+}
+
+func TestReloadFromEmptyList(t *testing.T) {
+	deps := Deps{Load: func(context.Context) (*model.Snapshot, error) { return fixture(), nil }}
+	m, cmd := press(newTest(snapshot(), deps), "g")
+	if cmd == nil || !m.reloading {
+		t.Fatalf("g on empty list: reloading=%v cmd=%v", m.reloading, cmd)
+	}
+	nm, _ := m.Update(cmd())
+	m = nm.(Model)
+	if len(m.rows()) != 3 || !strings.Contains(plain(m), "eslint") {
+		t.Errorf("rows=%d view:\n%s", len(m.rows()), plain(m))
+	}
+}
+
+func TestReloadClampsCursor(t *testing.T) {
+	fresh := snapshot(mkPR("acme/api", 1, "Bump lodash from 4.17.20 to 4.17.21"))
+	deps := Deps{Load: func(context.Context) (*model.Snapshot, error) { return fresh, nil }}
+	m, _ := press(newTest(fixture(), deps), "j", "j")
+	if m.cursor != 2 {
+		t.Fatalf("cursor = %d, want 2", m.cursor)
+	}
+	m, cmd := press(m, "g")
+	nm, _ := m.Update(cmd())
+	m = nm.(Model)
+	if m.cursor != 0 || m.scroll != 0 || m.status != "Reloaded 1 PRs." {
+		t.Errorf("cursor=%d scroll=%d status=%q", m.cursor, m.scroll, m.status)
+	}
+}
+
+func TestReloadOnOtherScreenKeepsStatus(t *testing.T) {
+	deps := Deps{Load: func(context.Context) (*model.Snapshot, error) { return fixture(), nil }}
+	m, cmd := press(newTest(fixture(), deps), "j", "j", "space", "g")
+	m, _ = press(m, "c")
+	if m.screen != screenConfirm {
+		t.Fatalf("screen = %v, want confirm", m.screen)
+	}
+	want := m.status
+	nm, _ := m.Update(cmd())
+	m = nm.(Model)
+	if m.status != want || m.reloading || m.screen != screenConfirm {
+		t.Errorf("status=%q want %q reloading=%v screen=%v", m.status, want, m.reloading, m.screen)
 	}
 }
 

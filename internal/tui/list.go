@@ -44,6 +44,9 @@ func (m Model) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if k == "q" || k == "esc" {
 		return m, tea.Quit
 	}
+	if k == "g" {
+		return m.startReload()
+	}
 	rows := m.rows()
 	if len(rows) == 0 {
 		return m, nil
@@ -76,20 +79,22 @@ func (m Model) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			break
 		}
 		return m.startConfirm()
-	case "g":
-		if m.reloading {
-			m.status = "Already reloading..."
-			break
-		}
-		m.reloading, m.status = true, "Reloading..."
-		load, ctx := m.deps.Load, m.ctx
-		return m, func() tea.Msg {
-			s, err := load(ctx)
-			return reloadedMsg{snap: s, err: err}
-		}
 	}
 	m.fixScroll()
 	return m, nil
+}
+
+func (m Model) startReload() (tea.Model, tea.Cmd) {
+	if m.reloading {
+		m.status = "Already reloading..."
+		return m, nil
+	}
+	m.reloading, m.status = true, "Reloading..."
+	load, ctx := m.deps.Load, m.ctx
+	return m, func() tea.Msg {
+		s, err := load(ctx)
+		return reloadedMsg{snap: s, err: err}
+	}
 }
 
 func (m *Model) toggle(r row) {

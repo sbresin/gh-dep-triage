@@ -127,20 +127,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case reloadedMsg:
 		m.reloading = false
+		status := ""
 		if msg.err != nil {
-			m.status = "Reload failed: " + msg.err.Error()
-			return m, nil
-		}
-		m.snap = msg.snap
-		for ref := range m.selected {
-			if pr := m.findPR(ref); pr == nil || !selectable(pr) {
-				delete(m.selected, ref)
+			status = "Reload failed: " + msg.err.Error()
+		} else {
+			m.snap = msg.snap
+			for ref := range m.selected {
+				if pr := m.findPR(ref); pr == nil || !selectable(pr) {
+					delete(m.selected, ref)
+				}
+			}
+			m.fixScroll()
+			status = fmt.Sprintf("Reloaded %d PRs.", len(m.snap.PRs()))
+			if n := len(m.snap.Warnings); n > 0 {
+				status += fmt.Sprintf(" %d warning(s).", n)
 			}
 		}
-		m.fixScroll()
-		m.status = fmt.Sprintf("Reloaded %d PRs.", len(m.snap.PRs()))
-		if n := len(m.snap.Warnings); n > 0 {
-			m.status += fmt.Sprintf(" %d warning(s).", n)
+		if m.screen == screenList {
+			m.status = status
 		}
 		return m, nil
 	case tea.KeyPressMsg:
