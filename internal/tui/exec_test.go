@@ -223,6 +223,26 @@ func TestCtrlCDuringExecution(t *testing.T) {
 	}
 }
 
+func TestTinyTerminalMidRunIgnoresQuit(t *testing.T) {
+	m := selectLodash(newTest(fixture(), (&fakeRun{fresh: fixture()}).deps()))
+	nm, loadCmd := m.Update(key("enter"))
+	nm, _ = nm.(Model).Update(loadCmd())
+	nm, _ = nm.(Model).Update(tea.WindowSizeMsg{Width: 30, Height: 5})
+	m = nm.(Model)
+	if m.phase != phaseExecuting {
+		t.Fatalf("phase = %d", m.phase)
+	}
+	for _, k := range []string{"q", "esc"} {
+		if nm, cmd := press(m, k); isQuit(cmd) || nm.phase != phaseExecuting || nm.screen != screenProgress {
+			t.Errorf("%s mid-run on a tiny terminal must not quit: phase=%d screen=%d", k, nm.phase, nm.screen)
+		}
+	}
+	m, cmd := press(m, "ctrl+c")
+	if isQuit(cmd) || !m.cancelling || m.runCtx.Err() == nil {
+		t.Errorf("ctrl+c cancels: cancelling=%v ctxErr=%v", m.cancelling, m.runCtx.Err())
+	}
+}
+
 func TestResultsSections(t *testing.T) {
 	m := newTest(fixture(), Deps{})
 	m.results = []model.Result{

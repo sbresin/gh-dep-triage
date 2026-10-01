@@ -153,7 +153,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 		if m.tooSmall() {
-			if m.screen == screenProgress && msg.String() == "ctrl+c" {
+			if m.screen == screenProgress {
 				return m.updateProgress(msg)
 			}
 			if k := msg.String(); k == "q" || k == "esc" {
