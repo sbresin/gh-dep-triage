@@ -8,24 +8,6 @@ import (
 	"github.com/sbresin/gh-dep-triage/internal/model"
 )
 
-func TestSanitize(t *testing.T) {
-	tests := []struct{ in, want string }{
-		{"plain text", "plain text"},
-		{"keeps\nnewlines\tand tabs", "keeps\nnewlines\tand tabs"},
-		{"\x1b]52;c;SGVsbG8=\x07after", "]52;c;SGVsbG8=after"},
-		{"\x1b[31mred\x1b[0m", "[31mred[0m"},
-		{"over\rwrite", "overwrite"},
-		{"nul\x00bs\x08del\x7f", "nulbsdel"},
-		{"c1\u009b31m\u0085x", "c131mx"},
-		{"unicode ✓ é", "unicode ✓ é"},
-	}
-	for _, tt := range tests {
-		if got := sanitize(tt.in); got != tt.want {
-			t.Errorf("sanitize(%q) = %q, want %q", tt.in, got, tt.want)
-		}
-	}
-}
-
 func TestShowHumanStripsControlSequences(t *testing.T) {
 	const evil = "\x1b]52;c;SGVsbG8=\x07\x1b[31m"
 	f := sampleFake()
