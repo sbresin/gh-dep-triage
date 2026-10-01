@@ -9,6 +9,7 @@ import (
 	"github.com/sbresin/gh-dep-triage/internal/model"
 	"github.com/sbresin/gh-dep-triage/internal/plan"
 	"github.com/sbresin/gh-dep-triage/internal/policy"
+	"github.com/sbresin/gh-dep-triage/internal/safe"
 	"github.com/sbresin/gh-dep-triage/internal/tui"
 )
 
@@ -42,9 +43,15 @@ func (a *app) tui(cmd *cobra.Command) error {
 		Rules:  policy.Rules{Bots: a.cfg.Bots},
 		Who:    who,
 	}
-	code, err := a.runTUI(cmd.Context(), snap, deps)
+	code, results, err := a.runTUI(cmd.Context(), snap, deps)
 	if err != nil {
 		return err
+	}
+	if code == 130 {
+		// An interrupted run leaves no results screen; keep a record.
+		for _, r := range results {
+			fmt.Fprintf(a.stderr, "%s %s: %s\n", r.Status, safe.Line(r.Ref), safe.Line(dash(resultDetail(r))))
+		}
 	}
 	if code != ExitOK {
 		return &exitError{code: code}

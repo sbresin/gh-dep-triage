@@ -53,7 +53,7 @@ type app struct {
 	sleep     func(context.Context, time.Duration) error
 	isTTY     func() bool
 	browse    func(url string) error
-	runTUI    func(ctx context.Context, snap *model.Snapshot, deps tui.Deps) (int, error)
+	runTUI    func(ctx context.Context, snap *model.Snapshot, deps tui.Deps) (int, []model.Result, error)
 }
 
 func Execute() int {
@@ -75,7 +75,7 @@ func Execute() int {
 		},
 		isTTY:  term.FromEnv().IsTerminalOutput,
 		browse: browser.New("", io.Discard, io.Discard).Browse,
-		runTUI: func(ctx context.Context, s *model.Snapshot, d tui.Deps) (int, error) {
+		runTUI: func(ctx context.Context, s *model.Snapshot, d tui.Deps) (int, []model.Result, error) {
 			return tui.Run(ctx, s, d, os.Stdin, os.Stdout)
 		},
 	}

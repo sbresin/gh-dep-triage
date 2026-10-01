@@ -127,6 +127,9 @@ func TestExecutionHappyPath(t *testing.T) {
 	if diff := cmp.Diff([]string{"acme/api#1", "acme/web#2"}, f.executed); diff != "" {
 		t.Errorf("executed (-want +got):\n%s", diff)
 	}
+	if diff := cmp.Diff([]string{"acme/api#1 success", "acme/web#2 success"}, resultSummary(m.Results())); diff != "" {
+		t.Errorf("Results() (-want +got):\n%s", diff)
+	}
 	if got := plain(m); !strings.Contains(got, "Done 2/2") || !strings.Contains(got, "approved, merged (squash)") {
 		t.Errorf("progress view:\n%s", got)
 	}

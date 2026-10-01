@@ -17,13 +17,13 @@ type tuiCall struct {
 	deps tui.Deps
 }
 
-func tuiApp(f *githubtest.Fake, code int) (*app, *[]tuiCall) {
+func tuiApp(f *githubtest.Fake, code int, results ...model.Result) (*app, *[]tuiCall) {
 	a := testApp(f)
 	calls := &[]tuiCall{}
 	a.isTTY = func() bool { return true }
-	a.runTUI = func(_ context.Context, s *model.Snapshot, d tui.Deps) (int, error) {
+	a.runTUI = func(_ context.Context, s *model.Snapshot, d tui.Deps) (int, []model.Result, error) {
 		*calls = append(*calls, tuiCall{s, d})
-		return code, nil
+		return code, results, nil
 	}
 	return a, calls
 }
@@ -90,6 +90,23 @@ func TestRootTUITeamAndExitCode(t *testing.T) {
 	code, _, _ := runApp(t, a, "--team", "platform")
 	if code != 130 || (*calls)[0].deps.Who != "team platform" {
 		t.Errorf("code=%d who=%q", code, (*calls)[0].deps.Who)
+	}
+}
+
+func TestRootTUIInterruptedPrintsSummary(t *testing.T) {
+	a, _ := tuiApp(sampleFake(), 130,
+		model.Result{Ref: "acme/api#1", Status: model.ResultSuccess, Steps: []string{"approved", "merged (squash)"}},
+		model.Result{Ref: "acme/web#2", Status: model.ResultSkipped, Reason: model.ReasonCancelled, Message: "cancelled\x1b[31m before it started"},
+	)
+	code, out, errOut := runApp(t, a)
+	want := "success acme/api#1: approved, merged (squash)\nskipped acme/web#2: cancelled[31m before it started\n"
+	if code != 130 || out != "" || !strings.HasSuffix(errOut, want) {
+		t.Errorf("code=%d out=%q stderr=%q, want suffix %q", code, out, errOut, want)
+	}
+
+	a, _ = tuiApp(sampleFake(), 0, model.Result{Ref: "acme/api#1", Status: model.ResultSuccess})
+	if _, _, errOut := runApp(t, a); strings.Contains(errOut, "success acme/api#1") {
+		t.Errorf("summary only after an interrupted run: %q", errOut)
 	}
 }
 

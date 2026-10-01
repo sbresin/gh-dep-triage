@@ -98,6 +98,9 @@ func New(ctx context.Context, snap *model.Snapshot, deps Deps) Model {
 // Interrupted reports whether the user quit with ctrl+c.
 func (m Model) Interrupted() bool { return m.interrupted }
 
+// Results returns the results of the last execution, in arrival order.
+func (m Model) Results() []model.Result { return m.results }
+
 func (m Model) Init() tea.Cmd { return nil }
 
 func (m Model) tooSmall() bool { return m.width < 40 || m.height < 6 }
