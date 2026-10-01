@@ -2,6 +2,7 @@ package tui
 
 import (
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -91,5 +92,17 @@ func TestOpenInBrowser(t *testing.T) {
 	nm, _ = m.Update(cmd())
 	if got := nm.(Model).status; got != "Browser open failed for acme/api#3: no browser" {
 		t.Errorf("status = %q", got)
+	}
+}
+
+// A browser launched by `o` may write to the terminal behind Bubble Tea's back
+// (e.g. Flatpak warnings); the TUI must repaint the whole screen afterwards.
+func TestBrowsedRepaintsScreen(t *testing.T) {
+	m := newTest(fixture(), Deps{})
+	for _, msg := range []browsedMsg{{ref: "acme/api#3"}, {ref: "acme/api#3", err: errors.New("no browser")}} {
+		_, cmd := m.Update(msg)
+		if cmd == nil || !reflect.DeepEqual(cmd(), tea.ClearScreen()) {
+			t.Errorf("browsedMsg %+v must return tea.ClearScreen", msg)
+		}
 	}
 }

@@ -10,7 +10,6 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/cli/go-gh/v2/pkg/browser"
 	"github.com/cli/go-gh/v2/pkg/term"
 	"github.com/spf13/cobra"
 	"github.com/sbresin/gh-dep-triage/internal/config"
@@ -74,7 +73,7 @@ func Execute() int {
 			return c, nil
 		},
 		isTTY:  term.FromEnv().IsTerminalOutput,
-		browse: browser.New("", io.Discard, io.Discard).Browse,
+		browse: quietBrowse(),
 		runTUI: func(ctx context.Context, s *model.Snapshot, d tui.Deps) (int, []model.Result, error) {
 			return tui.Run(ctx, s, d, os.Stdin, os.Stdout)
 		},

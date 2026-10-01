@@ -119,7 +119,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.status = "Opened " + msg.ref + " in the browser."
 		}
-		return m, nil
+		// The launched browser may have written to the terminal behind our back.
+		return m, tea.ClearScreen
 	case refreshedMsg:
 		return m.onRefreshed(msg)
 	case resultMsg:
