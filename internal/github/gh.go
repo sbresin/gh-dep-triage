@@ -122,3 +122,26 @@ func mapAuthError(err error) error {
 	}
 	return err
 }
+
+const (
+	approveMutation   = `mutation($id: ID!, $oid: GitObjectID!) { addPullRequestReview(input: {pullRequestId: $id, commitOID: $oid, event: APPROVE}) { pullRequestReview { id } } }`
+	mergeMutation     = `mutation($id: ID!, $oid: GitObjectID!, $method: PullRequestMergeMethod!) { mergePullRequest(input: {pullRequestId: $id, expectedHeadOid: $oid, mergeMethod: $method}) { pullRequest { merged } } }`
+	autoMergeMutation = `mutation($id: ID!, $oid: GitObjectID!, $method: PullRequestMergeMethod!) { enablePullRequestAutoMerge(input: {pullRequestId: $id, expectedHeadOid: $oid, mergeMethod: $method}) { pullRequest { autoMergeRequest { enabledAt } } } }`
+)
+
+func (c *GH) mutate(ctx context.Context, query string, vars map[string]any) error {
+	var resp map[string]any
+	return c.gql.DoWithContext(ctx, query, vars, &resp)
+}
+
+func (c *GH) Approve(ctx context.Context, prID, headOid string) error {
+	return c.mutate(ctx, approveMutation, map[string]any{"id": prID, "oid": headOid})
+}
+
+func (c *GH) Merge(ctx context.Context, prID, headOid, method string) error {
+	return c.mutate(ctx, mergeMutation, map[string]any{"id": prID, "oid": headOid, "method": method})
+}
+
+func (c *GH) EnableAutoMerge(ctx context.Context, prID, headOid, method string) error {
+	return c.mutate(ctx, autoMergeMutation, map[string]any{"id": prID, "oid": headOid, "method": method})
+}

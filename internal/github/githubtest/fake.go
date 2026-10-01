@@ -13,25 +13,29 @@ import (
 )
 
 type Fake struct {
-	ViewerLogin string
-	Requested   []github.SearchHit
-	Reviewed    []github.SearchHit
-	PRs         map[string]*model.PR
-	Files       map[string][]model.ChangedFile
-	Logs        map[int64]string
-	FailBatch   map[string]error // a batch containing this ref fails as a whole
-	FailOnce    map[string]error // like FailBatch, but only for the first batch containing this ref
+	ViewerLogin  string
+	Requested    []github.SearchHit
+	Reviewed     []github.SearchHit
+	PRs          map[string]*model.PR
+	Files        map[string][]model.ChangedFile
+	Logs         map[int64]string
+	FailBatch    map[string]error // a batch containing this ref fails as a whole
+	FailOnce     map[string]error // like FailBatch, but only for the first batch containing this ref
+	MutationErr  map[string]error
+	AfterApprove map[string]func(*model.PR)
 
 	mu      sync.Mutex
 	Queries []string
 	Batches [][]model.PRRef
+	Calls   []string
 }
 
 var _ github.Client = (*Fake)(nil)
 
 func NewFake(viewer string) *Fake {
 	return &Fake{ViewerLogin: viewer, PRs: map[string]*model.PR{}, Files: map[string][]model.ChangedFile{},
-		Logs: map[int64]string{}, FailBatch: map[string]error{}, FailOnce: map[string]error{}}
+		Logs: map[int64]string{}, FailBatch: map[string]error{}, FailOnce: map[string]error{},
+		MutationErr: map[string]error{}, AfterApprove: map[string]func(*model.PR){}}
 }
 
 // NewPR returns a raw (not enriched) open Dependabot PR created 2026-09-25.
@@ -85,15 +89,14 @@ func (f *Fake) SearchPRs(_ context.Context, query string, limit int) ([]github.S
 
 func (f *Fake) FetchPRs(_ context.Context, _ string, refs []model.PRRef) ([]*model.PR, []model.Problem, error) {
 	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.Batches = append(f.Batches, append([]model.PRRef(nil), refs...))
 	for _, r := range refs {
 		if err := f.FailOnce[r.String()]; err != nil {
 			delete(f.FailOnce, r.String())
-			f.mu.Unlock()
 			return nil, nil, err
 		}
 	}
-	f.mu.Unlock()
 	for _, r := range refs {
 		if err := f.FailBatch[r.String()]; err != nil {
 			return nil, nil, err
@@ -124,4 +127,62 @@ func (f *Fake) JobLog(_ context.Context, _ string, jobID int64) (string, error) 
 		return "", fmt.Errorf("no log for job %d", jobID)
 	}
 	return l, nil
+}
+
+func (f *Fake) byID(id string) *model.PR {
+	for _, p := range f.PRs {
+		if p.ID == id {
+			return p
+		}
+	}
+	return nil
+}
+
+func (f *Fake) mutation(kind, id string, extra ...string) (*model.PR, error) {
+	pr := f.byID(id)
+	if pr == nil {
+		return nil, fmt.Errorf("Could not resolve to a node with the global id of '%s'", id) //nolint:staticcheck // mirrors GitHub's error text
+	}
+	f.Calls = append(f.Calls, strings.Join(append([]string{kind, pr.Ref}, extra...), " "))
+	if err := f.MutationErr[kind+" "+pr.Ref]; err != nil {
+		return nil, err
+	}
+	return pr, nil
+}
+
+func (f *Fake) Approve(_ context.Context, prID, headOid string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	pr, err := f.mutation("approve", prID, headOid)
+	if err != nil {
+		return err
+	}
+	pr.ViewerReviews = append(pr.ViewerReviews, model.Review{State: "APPROVED", SubmittedAt: time.Now()})
+	pr.ReviewDecision = "APPROVED"
+	if hook := f.AfterApprove[pr.Ref]; hook != nil {
+		hook(pr)
+	}
+	return nil
+}
+
+func (f *Fake) Merge(_ context.Context, prID, headOid, method string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	pr, err := f.mutation("merge", prID, headOid, method)
+	if err != nil {
+		return err
+	}
+	pr.State = "MERGED"
+	return nil
+}
+
+func (f *Fake) EnableAutoMerge(_ context.Context, prID, headOid, method string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	pr, err := f.mutation("automerge", prID, headOid, method)
+	if err != nil {
+		return err
+	}
+	pr.AutoMerge = true
+	return nil
 }

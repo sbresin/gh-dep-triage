@@ -28,4 +28,10 @@ type Client interface {
 	FetchPRs(ctx context.Context, viewer string, refs []model.PRRef) ([]*model.PR, []model.Problem, error)
 	PRFiles(ctx context.Context, ref model.PRRef) ([]model.ChangedFile, error)
 	JobLog(ctx context.Context, repo string, jobID int64) (string, error)
+	// Approve submits an APPROVE review on headOid.
+	Approve(ctx context.Context, prID, headOid string) error
+	// Merge merges now; GitHub rejects it if the head is no longer headOid.
+	Merge(ctx context.Context, prID, headOid, method string) error
+	// EnableAutoMerge turns on auto-merge pinned to headOid.
+	EnableAutoMerge(ctx context.Context, prID, headOid, method string) error
 }
