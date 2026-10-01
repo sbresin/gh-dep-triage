@@ -157,6 +157,7 @@ func TestMergeFailuresAfterApproval(t *testing.T) {
 		}, model.ResultFailed, model.ReasonChecksFailing},
 		{"auto-merge turned on", func(p *model.PR) { p.AutoMerge = true }, model.ResultSkipped, model.ReasonAlreadyMerging},
 		{"merge queue turned on", func(p *model.PR) { p.MergeQueue = true }, model.ResultSkipped, model.ReasonMergeQueue},
+		{"merged meanwhile", func(p *model.PR) { p.State = "MERGED" }, model.ResultSkipped, model.ReasonNotOpen},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -165,6 +166,9 @@ func TestMergeFailuresAfterApproval(t *testing.T) {
 			r, _ := mergeOne(t, f, "acme/api#1")
 			if r.Status != tt.status || r.Reason != tt.reason || !cmp.Equal(r.Steps, []string{"approved"}) {
 				t.Errorf("got %+v", r)
+			}
+			if tt.reason == model.ReasonNotOpen && r.Message != "pull request is merged" {
+				t.Errorf("message = %q", r.Message)
 			}
 			if len(f.Calls) != 1 {
 				t.Errorf("only the approval may have run: %v", f.Calls)

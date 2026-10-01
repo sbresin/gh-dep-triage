@@ -223,6 +223,8 @@ func (e *executor) merge(ctx context.Context, t plan.Task) model.Result {
 			return finish(r, model.ResultFailed, model.ReasonRefetchFailed, err.Error())
 		}
 		switch {
+		case cur.State != "OPEN":
+			return finish(r, model.ResultSkipped, model.ReasonNotOpen, "pull request is "+strings.ToLower(cur.State))
 		case cur.HeadOid != pr.HeadOid:
 			return finish(r, model.ResultFailed, model.ReasonHeadChanged, fmt.Sprintf("head moved from %s to %s", pr.HeadOid, cur.HeadOid))
 		case cur.Checks.Failed > 0:

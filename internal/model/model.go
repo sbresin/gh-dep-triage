@@ -219,6 +219,7 @@ const (
 	ReasonRefetchFailed   = "refetch_failed"
 	ReasonMutationFailed  = "mutation_failed"
 	ReasonCancelled       = "cancelled"
+	ReasonNotOpen         = "not_open"
 	ReasonNotBotPR        = "not_bot_pr"
 	ReasonRepoDenied      = "repo_denied"
 	ReasonRepoNotAllowed  = "repo_not_allowed"
