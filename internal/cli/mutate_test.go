@@ -10,8 +10,9 @@ import (
 )
 
 type resultsEnvelope struct {
-	DryRun bool `json:"dryRun"`
-	Data   struct {
+	Command string `json:"command"`
+	DryRun  bool   `json:"dryRun"`
+	Data    struct {
 		Results []model.Result `json:"results"`
 		Counts  resultCounts   `json:"counts"`
 	} `json:"data"`
