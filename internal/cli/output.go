@@ -38,6 +38,7 @@ type envelope struct {
 func toProblem(err error) model.Problem {
 	var re *triage.RefError
 	var ue *usageError
+	var ce *configError
 	switch {
 	case errors.As(err, &re):
 		return model.Problem{Code: re.Code, Message: re.Message, Ref: re.Ref, Candidates: re.Candidates}
@@ -45,6 +46,8 @@ func toProblem(err error) model.Problem {
 		return model.Problem{Code: "invalid_argument", Message: ue.msg}
 	case errors.Is(err, github.ErrNotAuthenticated):
 		return model.Problem{Code: "not_authenticated", Message: err.Error()}
+	case errors.As(err, &ce):
+		return model.Problem{Code: "invalid_config", Message: err.Error()}
 	default:
 		return model.Problem{Code: "error", Message: err.Error()}
 	}

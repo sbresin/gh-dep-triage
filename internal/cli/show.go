@@ -39,6 +39,9 @@ func (a *app) showCmd() *cobra.Command {
 		Short: "Show one PR with body, release notes, files and optional failed-job logs",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := output{command: "show"}
+			if err := a.prepare(cmd); err != nil {
+				return a.emit(out, err)
+			}
 			if len(args) != 1 {
 				return a.emit(out, &usageError{msg: "show takes exactly one PR ref (owner/repo#123)"})
 			}

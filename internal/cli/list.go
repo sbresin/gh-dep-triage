@@ -75,6 +75,9 @@ func (a *app) listCmd() *cobra.Command {
 		Short: "List dependency PRs with blockers and suggested actions",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := output{command: "list"}
+			if err := a.prepare(cmd); err != nil {
+				return a.emit(out, err)
+			}
 			if len(args) > 0 {
 				return a.emit(out, &usageError{msg: "list takes no arguments"})
 			}

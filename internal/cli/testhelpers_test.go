@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"flag"
 	"os"
 	"path/filepath"
@@ -17,10 +18,37 @@ var update = flag.Bool("update", false, "rewrite golden files")
 
 var testNow = time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC)
 
+func TestMain(m *testing.M) {
+	dir, err := os.MkdirTemp("", "gh-dep-triage-cli")
+	if err != nil {
+		panic(err)
+	}
+	os.Setenv("XDG_CONFIG_HOME", dir)
+	code := m.Run()
+	os.RemoveAll(dir)
+	os.Exit(code)
+}
+
+// writeConfig writes body as the default config file and returns its path.
+func writeConfig(t *testing.T, body string) string {
+	t.Helper()
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	p := filepath.Join(dir, "gh-dep-triage", "config.yml")
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
 func testApp(f *githubtest.Fake) *app {
 	return &app{
 		now:       func() time.Time { return testNow },
 		newClient: func() (github.Client, error) { return f, nil },
+		sleep:     func(ctx context.Context, _ time.Duration) error { return ctx.Err() },
 	}
 }
 
