@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/sbresin/gh-dep-triage/internal/github/githubtest"
 	"github.com/sbresin/gh-dep-triage/internal/model"
 )
 
@@ -100,6 +101,15 @@ func TestApproveMajorWithAutoMergeNeedsFlag(t *testing.T) {
 	code, out, _ := runApp(t, testApp(f), "approve", "acme/api#4", "--yes", "--allow-major", "--json")
 	if got := summary(decodeResults(t, out).Data.Results); code != ExitOK || !cmp.Equal(got, []string{"acme/api#4 skipped already_approved"}) {
 		t.Errorf("with flag: code=%d results=%v", code, got)
+	}
+}
+
+func TestApproveAutoMergeWithFailingChecksDenied(t *testing.T) {
+	f := sampleFake()
+	f.PRs["acme/api#4"].CheckRuns = []model.Check{githubtest.CheckRun("test", "COMPLETED", "FAILURE", 102)}
+	code, out, _ := runApp(t, testApp(f), "approve", "acme/api#4", "--allow-major", "--json")
+	if got := summary(decodeResults(t, out).Data.Results); code != ExitDenied || !cmp.Equal(got, []string{"acme/api#4 denied checks_failing"}) {
+		t.Errorf("code=%d results=%v", code, got)
 	}
 }
 

@@ -35,7 +35,8 @@ func Evaluate(action string, pr *model.PR, r Rules) Verdict {
 	if !isBot(pr.Author, r.Bots) {
 		return deny(model.ReasonNotBotPR, "only bot PRs are supported (author %q)", pr.Author)
 	}
-	if action == model.ActionMerge && pr.Checks.Failed > 0 {
+	// Approving a PR with auto-merge on would merge it despite the failure.
+	if pr.Checks.Failed > 0 && (action == model.ActionMerge || (action == model.ActionApprove && pr.AutoMerge)) {
 		return deny(model.ReasonChecksFailing, "%d failing check(s): %s", pr.Checks.Failed, strings.Join(pr.Checks.FailedNames, ", "))
 	}
 	if !r.Soft {

@@ -34,6 +34,13 @@ func TestEvaluate(t *testing.T) {
 			p.Checks.Failed, p.Checks.FailedNames = 1, []string{"test"}
 		}), Rules{}, false, model.ReasonChecksFailing},
 		{"failing checks allow approve", model.ActionApprove, pr(func(p *model.PR) { p.Checks.Failed = 1 }), soft, true, ""},
+		{"failing checks block approve with automerge", model.ActionApprove, pr(func(p *model.PR) {
+			p.AutoMerge, p.Checks.Failed, p.Checks.FailedNames = true, 1, []string{"test"}
+		}), soft, false, model.ReasonChecksFailing},
+		{"tui blocks approve with automerge and failing checks", model.ActionApprove, pr(func(p *model.PR) {
+			p.AutoMerge, p.Checks.Failed, p.Checks.FailedNames = true, 1, []string{"test"}
+		}), Rules{}, false, model.ReasonChecksFailing},
+		{"failing checks allow approve in tui", model.ActionApprove, pr(func(p *model.PR) { p.Checks.Failed = 1 }), Rules{}, true, ""},
 		{"major needs flag", model.ActionMerge, pr(func(p *model.PR) { p.Bump = model.BumpMajor }), soft, false, model.ReasonMajorNeedsFlag},
 		{"major with flag", model.ActionMerge, pr(func(p *model.PR) { p.Bump = model.BumpMajor }), Rules{Soft: true, AllowMajor: true}, true, ""},
 		{"major approve without automerge", model.ActionApprove, pr(func(p *model.PR) { p.Bump = model.BumpMajor }), soft, true, ""},
