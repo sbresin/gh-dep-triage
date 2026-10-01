@@ -97,6 +97,14 @@ func (m Model) startReload() (tea.Model, tea.Cmd) {
 	}
 }
 
+// rowID identifies a list row across snapshots.
+func rowID(r row) string {
+	if r.isGroup() {
+		return "group\x00" + groupKey(r.group)
+	}
+	return "pr\x00" + r.pr.Ref
+}
+
 // onReloaded swaps in a reloaded snapshot. A selection is kept only while
 // its PR is still ready at the head the user saw.
 func (m Model) onReloaded(msg reloadedMsg) (tea.Model, tea.Cmd) {
@@ -111,7 +119,17 @@ func (m Model) onReloaded(msg reloadedMsg) (tea.Model, tea.Cmd) {
 				heads[ref] = pr.HeadOid
 			}
 		}
+		focus := ""
+		if rows := m.rows(); m.cursor < len(rows) {
+			focus = rowID(rows[m.cursor])
+		}
 		m.snap = msg.snap
+		for i, r := range m.rows() {
+			if focus != "" && rowID(r) == focus {
+				m.cursor = i
+				break
+			}
+		}
 		moved := 0
 		for ref := range m.selected {
 			pr := m.findPR(ref)

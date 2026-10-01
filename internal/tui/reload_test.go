@@ -84,6 +84,37 @@ func TestReloadClampsCursor(t *testing.T) {
 	}
 }
 
+func TestReloadKeepsFocusedRow(t *testing.T) {
+	fresh := snapshot( // axios (row 0) is gone
+		mkPR("acme/api", 1, "Bump lodash from 4.17.20 to 4.17.21"),
+		mkPR("acme/web", 2, "Bump lodash from 4.17.20 to 4.17.21"),
+		mkPR("acme/api", 4, "Bump eslint from 8.57.0 to 9.1.0"),
+	)
+	deps := Deps{Load: func(context.Context) (*model.Snapshot, error) { return fresh, nil }}
+	for _, tt := range []struct {
+		name string
+		keys []string
+		want string
+	}{
+		{"pr row", []string{"j"}, "acme/api#4"},
+		{"group row", []string{"j", "j"}, "lodash"},
+	} {
+		m, cmd := press(newTest(fixture(), deps), append(tt.keys, "g")...)
+		nm, _ := m.Update(cmd())
+		m = nm.(Model)
+		r := m.rows()[m.cursor]
+		got := ""
+		if r.isGroup() {
+			got = r.group.Package
+		} else {
+			got = r.pr.Ref
+		}
+		if got != tt.want {
+			t.Errorf("%s: focused %q after reload (cursor %d), want %q", tt.name, got, m.cursor, tt.want)
+		}
+	}
+}
+
 func TestReloadOnOtherScreenKeepsStatus(t *testing.T) {
 	deps := Deps{Load: func(context.Context) (*model.Snapshot, error) { return fixture(), nil }}
 	m, cmd := press(newTest(fixture(), deps), "j", "j", "space", "g")
