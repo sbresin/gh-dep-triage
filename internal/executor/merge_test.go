@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -258,5 +259,31 @@ func TestMergeMethod(t *testing.T) {
 		if got := MergeMethod(tt.s); got != tt.want {
 			t.Errorf("MergeMethod(%+v) = %q, want %q", tt.s, got, tt.want)
 		}
+	}
+}
+
+type blockingFake struct{ *githubtest.Fake }
+
+func (b *blockingFake) Merge(ctx context.Context, _, _, _ string) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func TestMergeMutationTimesOut(t *testing.T) {
+	f := newMergeFake(approved, func(p *model.PR) { p.MergeStateStatus = "CLEAN" })
+	var s sleeps
+	o := opts(&s)
+	o.MutationTimeout = 10 * time.Millisecond
+	done := make(chan model.Result)
+	go func() {
+		done <- Run(context.Background(), &blockingFake{f}, []plan.Task{task(f, "merge", "acme/api#1")}, o)[0]
+	}()
+	select {
+	case r := <-done:
+		if r.Status != model.ResultFailed || r.Reason != model.ReasonMutationFailed || !strings.Contains(r.Message, "deadline") {
+			t.Errorf("got %+v", r)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run did not return: the mutation has no timeout")
 	}
 }

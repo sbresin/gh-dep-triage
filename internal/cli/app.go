@@ -53,6 +53,8 @@ type app struct {
 func Execute() int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
+	// After the first Ctrl-C restore default handling so a second one exits.
+	go func() { <-ctx.Done(); stop() }()
 	a := &app{
 		stdout: os.Stdout,
 		stderr: os.Stderr,

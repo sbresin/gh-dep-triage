@@ -19,6 +19,7 @@ const (
 	DefaultRepoParallel = 2
 	DefaultDelay        = 2 * time.Second
 	DefaultPollInterval = time.Second
+	mutationTimeout     = 30 * time.Second
 	unknownPolls        = 3
 )
 
@@ -27,8 +28,10 @@ type Options struct {
 	RepoParallel int
 	Delay        time.Duration
 	PollInterval time.Duration
-	Sleep        func(context.Context, time.Duration) error
-	OnResult     func(model.Result)
+	// MutationTimeout bounds each mutation call; it is not cancelled by ctx.
+	MutationTimeout time.Duration
+	Sleep           func(context.Context, time.Duration) error
+	OnResult        func(model.Result)
 }
 
 func (o Options) withDefaults() Options {
@@ -40,6 +43,9 @@ func (o Options) withDefaults() Options {
 	}
 	if o.PollInterval == 0 {
 		o.PollInterval = DefaultPollInterval
+	}
+	if o.MutationTimeout <= 0 {
+		o.MutationTimeout = mutationTimeout
 	}
 	if o.Sleep == nil {
 		o.Sleep = sleepCtx
@@ -146,12 +152,20 @@ func (e *executor) run(ctx context.Context, t plan.Task) model.Result {
 	}
 }
 
+// mutate runs one mutation that finishes even when ctx is cancelled (so an
+// in-flight request is never abandoned) but is bounded by MutationTimeout.
+func (e *executor) mutate(ctx context.Context, fn func(context.Context) error) error {
+	mctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), e.o.MutationTimeout)
+	defer cancel()
+	return fn(mctx)
+}
+
 func (e *executor) approve(ctx context.Context, t plan.Task) model.Result {
 	r := newResult(t)
 	if t.PR.ViewerApproved {
 		return finish(r, model.ResultSkipped, model.ReasonAlreadyApproved, "")
 	}
-	if err := e.c.Approve(context.WithoutCancel(ctx), t.PR.ID, t.PR.HeadOid); err != nil {
+	if err := e.mutate(ctx, func(c context.Context) error { return e.c.Approve(c, t.PR.ID, t.PR.HeadOid) }); err != nil {
 		return finish(r, model.ResultFailed, model.ReasonMutationFailed, err.Error())
 	}
 	r.Steps = append(r.Steps, "approved")
@@ -182,11 +196,10 @@ func (e *executor) merge(ctx context.Context, t plan.Task) model.Result {
 	if pr.MergeQueue {
 		return finish(r, model.ResultSkipped, model.ReasonMergeQueue, "the base branch uses a merge queue, which is not supported")
 	}
-	mctx := context.WithoutCancel(ctx)
 	cur := pr
 	refetch := pr.MergeStateStatus == "UNKNOWN"
 	if !pr.ViewerApproved {
-		if err := e.c.Approve(mctx, pr.ID, pr.HeadOid); err != nil {
+		if err := e.mutate(ctx, func(c context.Context) error { return e.c.Approve(c, pr.ID, pr.HeadOid) }); err != nil {
 			return finish(r, model.ResultFailed, model.ReasonMutationFailed, err.Error())
 		}
 		r.Steps = append(r.Steps, "approved")
@@ -222,14 +235,14 @@ func (e *executor) merge(ctx context.Context, t plan.Task) model.Result {
 	label := strings.ToLower(method)
 	switch {
 	case cur.MergeStateStatus == "CLEAN" || cur.MergeStateStatus == "HAS_HOOKS":
-		if err := e.c.Merge(mctx, cur.ID, pr.HeadOid, method); err != nil {
+		if err := e.mutate(ctx, func(c context.Context) error { return e.c.Merge(c, cur.ID, pr.HeadOid, method) }); err != nil {
 			return finish(r, model.ResultFailed, model.ReasonMutationFailed, err.Error())
 		}
 		r.Steps = append(r.Steps, "merged ("+label+")")
 	case cur.MergeStateStatus == "DIRTY":
 		return finish(r, model.ResultSkipped, model.ReasonNotMergeable, "merge conflicts with "+cur.BaseRef)
 	case cur.RepoSettings.AutoMergeAllowed:
-		if err := e.c.EnableAutoMerge(mctx, cur.ID, pr.HeadOid, method); err != nil {
+		if err := e.mutate(ctx, func(c context.Context) error { return e.c.EnableAutoMerge(c, cur.ID, pr.HeadOid, method) }); err != nil {
 			return finish(r, model.ResultFailed, model.ReasonMutationFailed, err.Error())
 		}
 		r.Steps = append(r.Steps, "auto-merge enabled ("+label+")")
