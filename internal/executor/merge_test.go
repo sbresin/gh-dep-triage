@@ -148,20 +148,22 @@ func TestMergeFailuresAfterApproval(t *testing.T) {
 	tests := []struct {
 		name   string
 		hook   func(*model.PR)
+		status string
 		reason string
 	}{
-		{"head moved", func(p *model.PR) { p.HeadOid = "sha-new" }, model.ReasonHeadChanged},
+		{"head moved", func(p *model.PR) { p.HeadOid = "sha-new" }, model.ResultFailed, model.ReasonHeadChanged},
 		{"check failed", func(p *model.PR) {
 			p.CheckRuns = []model.Check{githubtest.CheckRun("test", "COMPLETED", "FAILURE", 1)}
-		}, model.ReasonChecksFailing},
-		{"auto-merge turned on", func(p *model.PR) { p.AutoMerge = true }, model.ReasonAlreadyMerging},
+		}, model.ResultFailed, model.ReasonChecksFailing},
+		{"auto-merge turned on", func(p *model.PR) { p.AutoMerge = true }, model.ResultSkipped, model.ReasonAlreadyMerging},
+		{"merge queue turned on", func(p *model.PR) { p.MergeQueue = true }, model.ResultSkipped, model.ReasonMergeQueue},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := newMergeFake()
 			f.AfterApprove["acme/api#1"] = tt.hook
 			r, _ := mergeOne(t, f, "acme/api#1")
-			if r.Reason != tt.reason || !cmp.Equal(r.Steps, []string{"approved"}) {
+			if r.Status != tt.status || r.Reason != tt.reason || !cmp.Equal(r.Steps, []string{"approved"}) {
 				t.Errorf("got %+v", r)
 			}
 			if len(f.Calls) != 1 {
@@ -175,8 +177,58 @@ func TestMergeRefetchFailure(t *testing.T) {
 	f := newMergeFake()
 	f.AfterApprove["acme/api#1"] = func(*model.PR) { f.FailBatch["acme/api#1"] = errors.New("HTTP 502") }
 	r, _ := mergeOne(t, f, "acme/api#1")
-	if r.Status != model.ResultFailed || r.Reason != model.ReasonRefetchFailed {
+	if r.Status != model.ResultFailed || r.Reason != model.ReasonRefetchFailed || !cmp.Equal(r.Steps, []string{"approved"}) {
 		t.Errorf("got %+v", r)
+	}
+}
+
+func TestMergePollsExhaustedEnablesAutoMerge(t *testing.T) {
+	f := newMergeFake()
+	f.AfterApprove["acme/api#1"] = func(p *model.PR) { p.MergeStateStatus = "UNKNOWN" }
+	r, s := mergeOne(t, f, "acme/api#1")
+	if r.Status != model.ResultSuccess || !cmp.Equal(r.Steps, []string{"approved", "auto-merge enabled (squash)"}) {
+		t.Errorf("got %+v", r)
+	}
+	if diff := cmp.Diff([]time.Duration{DefaultPollInterval, DefaultPollInterval, DefaultPollInterval}, s.d); diff != "" {
+		t.Errorf("poll sleeps (-want +got):\n%s", diff)
+	}
+}
+
+func TestMergeCancelledBeforeFurtherMutations(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(f *githubtest.Fake, cancel context.CancelFunc, o *Options)
+	}{
+		{"during poll sleep", func(f *githubtest.Fake, cancel context.CancelFunc, o *Options) {
+			f.AfterApprove["acme/api#1"] = func(p *model.PR) { p.MergeStateStatus = "UNKNOWN" }
+			o.Sleep = func(ctx context.Context, _ time.Duration) error {
+				cancel()
+				return ctx.Err()
+			}
+		}},
+		{"before refetch", func(f *githubtest.Fake, cancel context.CancelFunc, _ *Options) {
+			f.AfterApprove["acme/api#1"] = func(p *model.PR) {
+				p.MergeStateStatus = "CLEAN"
+				cancel()
+			}
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newMergeFake()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			var s sleeps
+			o := opts(&s)
+			tt.setup(f, cancel, &o)
+			r := Run(ctx, f, []plan.Task{task(f, "merge", "acme/api#1")}, o)[0]
+			if r.Status != model.ResultSkipped || r.Reason != model.ReasonCancelled || !cmp.Equal(r.Steps, []string{"approved"}) {
+				t.Errorf("got %+v", r)
+			}
+			if diff := cmp.Diff([]string{"approve acme/api#1 sha1"}, f.Calls); diff != "" {
+				t.Errorf("calls (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
 

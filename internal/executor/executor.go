@@ -194,7 +194,11 @@ func (e *executor) merge(ctx context.Context, t plan.Task) model.Result {
 	}
 	if refetch {
 		var err error
-		if cur, err = e.refetch(ctx, pr); err != nil {
+		cur, err = e.refetch(ctx, pr)
+		if ctx.Err() != nil {
+			return finish(r, model.ResultSkipped, model.ReasonCancelled, "cancelled before merging")
+		}
+		if err != nil {
 			return finish(r, model.ResultFailed, model.ReasonRefetchFailed, err.Error())
 		}
 		switch {
@@ -204,11 +208,16 @@ func (e *executor) merge(ctx context.Context, t plan.Task) model.Result {
 			return finish(r, model.ResultFailed, model.ReasonChecksFailing, fmt.Sprintf("%d failing check(s)", cur.Checks.Failed))
 		case cur.AutoMerge:
 			return finish(r, model.ResultSkipped, model.ReasonAlreadyMerging, "auto-merge was enabled meanwhile")
+		case cur.MergeQueue:
+			return finish(r, model.ResultSkipped, model.ReasonMergeQueue, "the base branch now uses a merge queue, which is not supported")
 		}
 	}
 	method := MergeMethod(cur.RepoSettings)
 	if method == "" {
 		return finish(r, model.ResultSkipped, model.ReasonNoMergeMethod, "the repo allows no merge method")
+	}
+	if ctx.Err() != nil {
+		return finish(r, model.ResultSkipped, model.ReasonCancelled, "cancelled before merging")
 	}
 	label := strings.ToLower(method)
 	switch {
@@ -251,7 +260,7 @@ func (e *executor) refetch(ctx context.Context, pr *model.PR) (*model.PR, error)
 			return cur, nil
 		}
 		if err := e.o.Sleep(ctx, e.o.PollInterval); err != nil {
-			return cur, nil
+			return nil, err
 		}
 	}
 }
