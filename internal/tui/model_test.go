@@ -146,8 +146,8 @@ func TestSortCycleFlattens(t *testing.T) {
 
 func TestConfirmNeedsSelection(t *testing.T) {
 	m, _ := press(newTest(fixture(), Deps{}), "c")
-	if m.screen != screenList || m.status != "Select at least one PR before confirming." {
-		t.Errorf("screen=%d status=%q", m.screen, m.status)
+	if m.popup != popupNone || m.status != "Select at least one PR before confirming." {
+		t.Errorf("popup=%d status=%q", m.popup, m.status)
 	}
 }
 

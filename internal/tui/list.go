@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/sbresin/gh-dep-triage/internal/model"
 )
 
 func (m Model) rows() []row { return buildRows(m.snap.Groups, m.sortMode, m.expanded) }
@@ -27,6 +28,15 @@ func adjustScroll(cursor, scroll, visible, total int) int {
 	default:
 		return max(0, min(scroll, total-visible))
 	}
+}
+
+func (m Model) findPR(ref string) *model.PR {
+	for _, pr := range m.snap.PRs() {
+		if pr.Ref == ref {
+			return pr
+		}
+	}
+	return nil
 }
 
 func (m Model) selectedCount() int {
@@ -74,11 +84,12 @@ func (m Model) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "space":
 		m.toggle(cur)
 	case "c":
-		if m.selectedCount() == 0 {
+		prs := m.markedPRs()
+		if len(prs) == 0 {
 			m.status = "Select at least one PR before confirming."
 			break
 		}
-		return m.startConfirm()
+		return m.openConfirm(prs, nil), nil
 	}
 	m.fixScroll()
 	return m, nil
@@ -105,8 +116,9 @@ func rowID(r row) string {
 	return "pr\x00" + r.pr.Ref
 }
 
-// onReloaded swaps in a reloaded snapshot. A selection is kept only while
-// its PR is still ready at the head the user saw.
+// onReloaded swaps in a reloaded snapshot. A mark is kept only while its PR
+// is still markable at the head the user saw. Badges are rebuilt from the
+// queue's current jobs, so badges of cleared jobs disappear.
 func (m Model) onReloaded(msg reloadedMsg) (tea.Model, tea.Cmd) {
 	m.reloading = false
 	status := ""
@@ -124,6 +136,7 @@ func (m Model) onReloaded(msg reloadedMsg) (tea.Model, tea.Cmd) {
 			focus = rowID(rows[m.cursor])
 		}
 		m.snap = msg.snap
+		m.syncJobs(true)
 		for i, r := range m.rows() {
 			if focus != "" && rowID(r) == focus {
 				m.cursor = i
@@ -134,7 +147,7 @@ func (m Model) onReloaded(msg reloadedMsg) (tea.Model, tea.Cmd) {
 		for ref := range m.selected {
 			pr := m.findPR(ref)
 			switch {
-			case pr == nil || !selectable(pr):
+			case pr == nil || !markable(pr, m.badges):
 				delete(m.selected, ref)
 			case pr.HeadOid != heads[ref]:
 				delete(m.selected, ref)
@@ -158,7 +171,7 @@ func (m Model) onReloaded(msg reloadedMsg) (tea.Model, tea.Cmd) {
 
 func (m *Model) toggle(r row) {
 	if r.isGroup() {
-		ready := groupSelectable(r.group)
+		ready := groupSelectable(r.group, m.badges)
 		if len(ready) == 0 {
 			m.status = fmt.Sprintf("No PR in %s can be merged now; press b on a PR to see why.", groupLabel(r.group))
 			return
@@ -183,6 +196,8 @@ func (m *Model) toggle(r row) {
 	}
 	pr := r.pr
 	switch {
+	case activeJob(m.badges, pr.Ref):
+		m.status = pr.Ref + " is already queued."
 	case !selectable(pr):
 		m.status = fmt.Sprintf("%s is %s; press b to see why.", pr.Ref, pr.Status)
 	case m.selected[pr.Ref]:
@@ -198,8 +213,8 @@ func (m Model) viewList() string {
 	rows := m.rows()
 	body := []string{}
 	for i := m.scroll; i < min(len(rows), m.scroll+m.listHeight()); i++ {
-		lead, box, text, badges := rowParts(rows[i], m.selected, m.expanded)
-		body = append(body, rowStyle(rows[i], m.selected, i == m.cursor).Render(layoutRow(lead, box, text, badges, m.width)))
+		lead, box, text, badges := rowParts(rows[i], m.selected, m.expanded, m.badges)
+		body = append(body, rowStyle(rows[i], m.selected, i == m.cursor, m.badges).Render(layoutRow(lead, box, text, badges, m.width)))
 	}
 	title := fmt.Sprintf("dep-triage | sort %s | %d/%d selected | %s", m.sortMode, m.selectedCount(), len(m.snap.PRs()), m.deps.Who)
 	return m.frame(title, listKeys, body, m.status)

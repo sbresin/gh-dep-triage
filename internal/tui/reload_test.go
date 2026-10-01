@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/sbresin/gh-dep-triage/internal/executor"
 	"github.com/sbresin/gh-dep-triage/internal/model"
 )
 
@@ -117,16 +118,31 @@ func TestReloadKeepsFocusedRow(t *testing.T) {
 
 func TestReloadOnOtherScreenKeepsStatus(t *testing.T) {
 	deps := Deps{Load: func(context.Context) (*model.Snapshot, error) { return fixture(), nil }}
-	m, cmd := press(newTest(fixture(), deps), "j", "j", "space", "g")
-	m, _ = press(m, "c")
-	if m.screen != screenConfirm {
-		t.Fatalf("screen = %v, want confirm", m.screen)
-	}
+	m, cmd := press(newTest(fixture(), deps), "g")
+	m, _ = press(m, "b")
 	want := m.status
 	nm, _ := m.Update(cmd())
 	m = nm.(Model)
-	if m.status != want || m.reloading || m.screen != screenConfirm {
+	if m.status != want || m.reloading || m.screen != screenPager {
 		t.Errorf("status=%q want %q reloading=%v screen=%v", m.status, want, m.reloading, m.screen)
+	}
+}
+
+func TestReloadKeepsActiveBadgesDropsCleared(t *testing.T) {
+	fq := newFakeQueue()
+	deps := Deps{Queue: fq, Load: func(context.Context) (*model.Snapshot, error) { return fixture(), nil }}
+	m, _ := press(selectLodash(newTest(fixture(), deps)), "y", "enter")
+	m = deliver(m, fq.set(1, executor.JobDone, "", success("acme/api#1")))
+	fq.ClearFinished()
+	if !strings.Contains(plain(m), iconDone+" done") {
+		t.Fatalf("a cleared job keeps its badge until the next reload:\n%s", plain(m))
+	}
+	m, cmd := press(m, "g")
+	nm, _ := m.Update(cmd())
+	m = nm.(Model)
+	got := plain(m)
+	if strings.Contains(got, iconDone+" done") || !strings.Contains(got, iconQueued+" queued") {
+		t.Errorf("after reload only the queued badge remains:\n%s", got)
 	}
 }
 

@@ -20,6 +20,14 @@ var (
 	styleDim    = lipgloss.NewStyle().Faint(true)
 	styleRed    = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
 	styleYellow = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
-	styleGreen  = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
 	styleCyan   = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
+)
+
+// Job state icons (queue pane and PR row badges).
+const (
+	iconQueued  = "⏳"
+	iconRunning = "⟳"
+	iconDone    = "✓"
+	iconFailed  = "✗"
+	iconSkipped = "⊘"
 )

@@ -7,13 +7,12 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/sbresin/gh-dep-triage/internal/executor"
 	"github.com/sbresin/gh-dep-triage/internal/model"
-	"github.com/sbresin/gh-dep-triage/internal/plan"
 	"github.com/sbresin/gh-dep-triage/internal/policy"
-	"github.com/sbresin/gh-dep-triage/internal/safe"
 	"github.com/sbresin/gh-dep-triage/internal/tui"
 )
 
-// tui loads a snapshot (with progress on stderr) and runs the interactive UI.
+// tui loads a snapshot (with progress on stderr) and runs the interactive UI
+// on top of a work queue, then prints one summary line per finished job.
 func (a *app) tui(cmd *cobra.Command) error {
 	out := output{}
 	if err := a.prepare(cmd); err != nil {
@@ -31,27 +30,27 @@ func (a *app) tui(cmd *cobra.Command) error {
 	if a.opts.team != "" {
 		who = "team " + a.opts.team
 	}
+	rules := policy.Rules{Bots: a.cfg.Bots}
+	// The TUI decides when the queue stops (Close), so a Ctrl-C that cancels
+	// cmd.Context() must not kill running jobs behind its back.
+	q := executor.NewQueue(context.WithoutCancel(cmd.Context()), client,
+		executor.Options{Viewer: snap.Viewer, Rules: rules, Sleep: a.sleep})
 	deps := tui.Deps{
 		Load: func(ctx context.Context) (*model.Snapshot, error) {
 			_, s, err := a.loadSnapshotWith(ctx, false)
 			return s, err
 		},
-		Execute: func(ctx context.Context, tasks []plan.Task, onResult func(model.Result)) []model.Result {
-			return executor.Run(ctx, client, tasks, executor.Options{Viewer: snap.Viewer, Sleep: a.sleep, OnResult: onResult})
-		},
+		Queue:  q,
 		Browse: a.browse,
-		Rules:  policy.Rules{Bots: a.cfg.Bots},
+		Rules:  rules,
 		Who:    who,
 	}
-	code, results, err := a.runTUI(cmd.Context(), snap, deps)
+	code, summary, err := a.runTUI(cmd.Context(), snap, deps)
 	if err != nil {
 		return err
 	}
-	if code == 130 {
-		// An interrupted run leaves no results screen; keep a record.
-		for _, r := range results {
-			fmt.Fprintf(a.stderr, "%s %s: %s\n", r.Status, safe.Line(r.Ref), safe.Line(dash(resultDetail(r))))
-		}
+	for _, line := range summary {
+		fmt.Fprintln(a.stderr, line)
 	}
 	if code != ExitOK {
 		return &exitError{code: code}

@@ -39,8 +39,6 @@ type Options struct {
 	// Sleep waits for d or until ctx is done. It also enforces the per-repo
 	// cooldown, so tests replace it to run without waiting.
 	Sleep func(context.Context, time.Duration) error
-	// OnResult is used by Run only.
-	OnResult func(model.Result)
 }
 
 func (o Options) withDefaults() Options {

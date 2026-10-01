@@ -12,7 +12,6 @@ import (
 	"github.com/sbresin/gh-dep-triage/internal/github"
 	"github.com/sbresin/gh-dep-triage/internal/github/githubtest"
 	"github.com/sbresin/gh-dep-triage/internal/model"
-	"github.com/sbresin/gh-dep-triage/internal/plan"
 	"github.com/sbresin/gh-dep-triage/internal/triage"
 )
 
@@ -221,52 +220,5 @@ func TestParentCancelStopsQueuedJobs(t *testing.T) {
 	}
 	if evs[len(evs)-1].Kind != EventClosed {
 		t.Errorf("last event = %v, want Closed", evs[len(evs)-1].Kind)
-	}
-}
-
-// Deleted in Task 3 together with Run.
-func TestRunWrapperKeepsPresetResults(t *testing.T) {
-	f := githubtest.NewFake("octocat")
-	f.Add(githubtest.NewPR("acme/api", 1, "Bump a from 1.0.0 to 1.0.1"), true, false)
-	pre := &model.Result{Action: "merge", Ref: "acme/api#9", Status: model.ResultFailed, Reason: model.ReasonNotEligible, Steps: []string{}}
-	var seen []string
-	o := opts(&sleeps{})
-	o.OnResult = func(r model.Result) { seen = append(seen, r.Ref) }
-	got := Run(context.Background(), f, []plan.Task{{Action: "merge", Result: pre}, {Action: "approve", PR: enriched(f, "acme/api#1")}}, o)
-	if diff := cmp.Diff([]string{"acme/api#9 failed not_eligible", "acme/api#1 success "}, statuses(got)); diff != "" {
-		t.Errorf("(-want +got):\n%s", diff)
-	}
-	if len(seen) != 2 {
-		t.Errorf("OnResult calls = %v", seen)
-	}
-}
-
-// cancelDuringApprove cancels the parent context inside the first approval
-// and gives the queue time to cancel the queued jobs before returning.
-type cancelDuringApprove struct {
-	*githubtest.Fake
-	cancel context.CancelFunc
-}
-
-func (c *cancelDuringApprove) Approve(ctx context.Context, id, head string) error {
-	c.cancel()
-	time.Sleep(20 * time.Millisecond)
-	return c.Fake.Approve(ctx, id, head)
-}
-
-// Deleted in Task 3 together with Run.
-func TestRunWrapperReportsInTaskOrder(t *testing.T) {
-	f := githubtest.NewFake("octocat")
-	f.Add(githubtest.NewPR("acme/api", 1, "Bump a from 1.0.0 to 1.0.1"), true, false)
-	f.Add(githubtest.NewPR("acme/api", 2, "Bump b from 1.0.0 to 1.0.1"), true, false)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	var seen []string
-	o := opts(&sleeps{})
-	o.OnResult = func(r model.Result) { seen = append(seen, r.Ref+" "+r.Status+" "+r.Reason) }
-	tasks := []plan.Task{{Action: "approve", PR: enriched(f, "acme/api#1")}, {Action: "approve", PR: enriched(f, "acme/api#2")}}
-	Run(ctx, &cancelDuringApprove{Fake: f, cancel: cancel}, tasks, o)
-	if diff := cmp.Diff([]string{"acme/api#1 success ", "acme/api#2 skipped cancelled"}, seen); diff != "" {
-		t.Errorf("OnResult order (-want +got):\n%s", diff)
 	}
 }

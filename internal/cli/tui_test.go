@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/sbresin/gh-dep-triage/internal/executor"
 	"github.com/sbresin/gh-dep-triage/internal/github/githubtest"
 	"github.com/sbresin/gh-dep-triage/internal/model"
-	"github.com/sbresin/gh-dep-triage/internal/plan"
 	"github.com/sbresin/gh-dep-triage/internal/tui"
 )
 
@@ -17,13 +17,13 @@ type tuiCall struct {
 	deps tui.Deps
 }
 
-func tuiApp(f *githubtest.Fake, code int, results ...model.Result) (*app, *[]tuiCall) {
+func tuiApp(f *githubtest.Fake, code int, summary ...string) (*app, *[]tuiCall) {
 	a := testApp(f)
 	calls := &[]tuiCall{}
 	a.isTTY = func() bool { return true }
-	a.runTUI = func(_ context.Context, s *model.Snapshot, d tui.Deps) (int, []model.Result, error) {
+	a.runTUI = func(_ context.Context, s *model.Snapshot, d tui.Deps) (int, []string, error) {
 		*calls = append(*calls, tuiCall{s, d})
-		return code, results, nil
+		return code, summary, nil
 	}
 	return a, calls
 }
@@ -60,15 +60,26 @@ func TestRootWithTTYStartsTUI(t *testing.T) {
 	}
 
 	f.AfterApprove["acme/api#1"] = func(p *model.PR) { p.MergeStateStatus = "CLEAN" }
-	var streamed []string
-	pr := c.snap.Find(model.PRRef{Repo: "acme/api", Number: 1})
-	c.deps.Execute(context.Background(), []plan.Task{{Action: model.ActionMerge, PR: pr}},
-		func(r model.Result) { streamed = append(streamed, r.Ref+" "+r.Status) })
-	if diff := cmp.Diff([]string{"approve acme/api#1 sha1", "merge acme/api#1 sha1 SQUASH"}, f.Calls); diff != "" {
-		t.Errorf("execute wiring (-want +got):\n%s", diff)
+	q := c.deps.Queue
+	if q == nil {
+		t.Fatal("the TUI gets a work queue")
 	}
-	if !cmp.Equal(streamed, []string{"acme/api#1 success"}) {
-		t.Errorf("streamed = %v", streamed)
+	if _, err := q.Submit(model.ActionMerge, c.snap.Find(model.PRRef{Repo: "acme/api", Number: 1})); err != nil {
+		t.Fatal(err)
+	}
+	for ev := range q.Events() {
+		if ev.Kind == executor.EventFinished {
+			if ev.Job.Result.Status != model.ResultSuccess {
+				t.Errorf("result %+v", ev.Job.Result)
+			}
+			break
+		}
+	}
+	if diff := cmp.Diff([]string{"approve acme/api#1 sha1", "merge acme/api#1 sha1 SQUASH"}, f.Calls); diff != "" {
+		t.Errorf("queue wiring (-want +got):\n%s", diff)
+	}
+	q.Close(false)
+	for range q.Events() {
 	}
 }
 
@@ -93,20 +104,16 @@ func TestRootTUITeamAndExitCode(t *testing.T) {
 	}
 }
 
-func TestRootTUIInterruptedPrintsSummary(t *testing.T) {
-	a, _ := tuiApp(sampleFake(), 130,
-		model.Result{Ref: "acme/api#1", Status: model.ResultSuccess, Steps: []string{"approved", "merged (squash)"}},
-		model.Result{Ref: "acme/web#2", Status: model.ResultSkipped, Reason: model.ReasonCancelled, Message: "cancelled\x1b[31m before it started"},
-	)
+func TestRootTUIPrintsSummary(t *testing.T) {
+	a, _ := tuiApp(sampleFake(), 130, "success acme/api#1: approved, merged (squash)", "skipped acme/web#2: cancelled before it started")
 	code, out, errOut := runApp(t, a)
-	want := "success acme/api#1: approved, merged (squash)\nskipped acme/web#2: cancelled[31m before it started\n"
+	want := "success acme/api#1: approved, merged (squash)\nskipped acme/web#2: cancelled before it started\n"
 	if code != 130 || out != "" || !strings.HasSuffix(errOut, want) {
 		t.Errorf("code=%d out=%q stderr=%q, want suffix %q", code, out, errOut, want)
 	}
-
-	a, _ = tuiApp(sampleFake(), 0, model.Result{Ref: "acme/api#1", Status: model.ResultSuccess})
-	if _, _, errOut := runApp(t, a); strings.Contains(errOut, "success acme/api#1") {
-		t.Errorf("summary only after an interrupted run: %q", errOut)
+	a, _ = tuiApp(sampleFake(), 0, "success acme/api#1: approved")
+	if _, _, errOut := runApp(t, a); !strings.HasSuffix(errOut, "success acme/api#1: approved\n") {
+		t.Errorf("the summary is printed after a normal exit too: %q", errOut)
 	}
 }
 

@@ -22,16 +22,14 @@ var noPRMessage = map[string]string{
 	"b": "Blocker details work on PR rows only.",
 }
 
-// focusedPR is the PR under the cursor on the current screen, or nil.
+// focusedPR is the PR under the cursor, or nil.
 func (m Model) focusedPR() *model.PR {
-	if m.screen == screenList {
-		rows := m.rows()
-		if m.cursor < len(rows) {
-			return rows[m.cursor].pr
-		}
+	if m.screen != screenList {
+		return nil
 	}
-	if m.screen == screenConfirm || m.screen == screenResults {
-		return m.findPR(m.list.focusedRef())
+	rows := m.rows()
+	if m.cursor < len(rows) {
+		return rows[m.cursor].pr
 	}
 	return nil
 }

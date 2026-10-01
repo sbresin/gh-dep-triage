@@ -9,19 +9,18 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/sbresin/gh-dep-triage/internal/executor"
 	"github.com/sbresin/gh-dep-triage/internal/model"
-	"github.com/sbresin/gh-dep-triage/internal/plan"
 	"github.com/sbresin/gh-dep-triage/internal/policy"
 	"github.com/sbresin/gh-dep-triage/internal/safe"
 )
 
 // Deps is everything the TUI needs from the outside world.
 type Deps struct {
-	// Load fetches a fresh snapshot (reload, and right before executing).
+	// Load fetches a fresh snapshot (reload).
 	Load func(ctx context.Context) (*model.Snapshot, error)
-	// Execute runs allowed tasks; onResult is called once per result and
-	// must not block.
-	Execute func(ctx context.Context, tasks []plan.Task, onResult func(model.Result)) []model.Result
+	// Queue runs confirmed Approve+Merge jobs in the background.
+	Queue Queue
 	// Browse opens a URL in the user's browser.
 	Browse func(url string) error
 	// Rules are the policy rules; the TUI uses hard rules only.
@@ -35,14 +34,18 @@ type screen int
 const (
 	screenList screen = iota
 	screenPager
-	screenConfirm
-	screenProgress
-	screenResults
+)
+
+type popupKind int
+
+const (
+	popupNone popupKind = iota
+	popupConfirm
 )
 
 const listKeys = "j/k move  s sort  enter fold  space select  o open  d desc  b blockers  g reload  c confirm  q quit"
 
-// Model is the Bubble Tea model for all TUI screens.
+// Model is the Bubble Tea model for the TUI.
 type Model struct {
 	ctx  context.Context
 	deps Deps
@@ -50,6 +53,7 @@ type Model struct {
 
 	width, height int
 	screen        screen
+	popup         popupKind
 	status        string
 	interrupted   bool
 	reloading     bool
@@ -64,17 +68,11 @@ type Model struct {
 	pagerTitle  string
 	pagerReturn screen
 
-	confirmPRs []*model.PR
-	list       listView
+	confirm confirmState
 
-	runCtx     context.Context
-	cancel     context.CancelFunc
-	ch         chan tea.Msg
-	phase      phase
-	cancelling bool
-	logs       []string
-	results    []model.Result
-	total      int
+	jobs    []executor.Job          // the queue's jobs, in submission order
+	badges  map[string]executor.Job // latest job per lower-cased ref
+	history []executor.Job          // finished jobs, from Finished events
 }
 
 type reloadedMsg struct {
@@ -86,6 +84,7 @@ func New(ctx context.Context, snap *model.Snapshot, deps Deps) Model {
 	m := Model{
 		ctx: ctx, deps: deps, snap: snap, width: 100, height: 30, screen: screenList,
 		sortMode: "package", expanded: map[string]bool{}, selected: map[string]bool{},
+		badges: map[string]executor.Job{},
 		status: "Space toggles Approve+Merge for the focused row.",
 	}
 	if n := len(snap.Warnings); n > 0 {
@@ -98,10 +97,12 @@ func New(ctx context.Context, snap *model.Snapshot, deps Deps) Model {
 // Interrupted reports whether the user quit with ctrl+c.
 func (m Model) Interrupted() bool { return m.interrupted }
 
-// Results returns the results of the last execution, in arrival order.
-func (m Model) Results() []model.Result { return m.results }
-
-func (m Model) Init() tea.Cmd { return nil }
+func (m Model) Init() tea.Cmd {
+	if m.deps.Queue == nil {
+		return nil
+	}
+	return listen(m.deps.Queue.Events())
+}
 
 func (m Model) tooSmall() bool { return m.width < 40 || m.height < 6 }
 
@@ -121,41 +122,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		// The launched browser may have written to the terminal behind our back.
 		return m, tea.ClearScreen
-	case refreshedMsg:
-		return m.onRefreshed(msg)
-	case resultMsg:
-		m.addResult(msg.result)
-		return m, waitFor(m.ch)
-	case execDoneMsg:
-		m.finish("")
-		return m, nil
+	case queueMsg:
+		return m.onQueue(msg)
 	case reloadedMsg:
 		return m.onReloaded(msg)
 	case tea.KeyPressMsg:
-		if msg.String() == "ctrl+c" && m.screen != screenProgress {
+		k := msg.String()
+		if k == "ctrl+c" {
 			m.interrupted = true
 			return m, tea.Quit
 		}
 		if m.tooSmall() {
-			if m.screen == screenProgress {
-				return m.updateProgress(msg)
-			}
-			if k := msg.String(); k == "q" || k == "esc" {
+			if k == "q" || k == "esc" {
 				return m, tea.Quit
 			}
 			return m, nil
+		}
+		if m.popup == popupConfirm {
+			return m.updateConfirm(k)
 		}
 		switch m.screen {
 		case screenList:
 			return m.updateList(msg)
 		case screenPager:
 			return m.updatePager(msg)
-		case screenConfirm:
-			return m.updateConfirm(msg)
-		case screenProgress:
-			return m.updateProgress(msg)
-		case screenResults:
-			return m.updateResults(msg)
 		}
 	}
 	if m.screen == screenPager {
@@ -168,20 +158,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) View() tea.View {
 	content := ""
-	if m.tooSmall() {
+	switch {
+	case m.tooSmall():
 		content = styleRed.Render("Terminal too small for dep-triage.")
-	} else {
-		switch m.screen {
-		case screenList:
-			content = m.viewList()
-		case screenPager:
-			content = m.viewPager()
-		case screenConfirm:
-			content = m.viewConfirm()
-		case screenProgress:
-			content = m.viewProgress()
-		case screenResults:
-			content = m.viewResults()
+	case m.screen == screenPager:
+		content = m.viewPager()
+	default:
+		content = m.viewList()
+		if m.popup == popupConfirm {
+			content = overlay(dim(content), m.viewConfirm(), m.width, m.height)
 		}
 	}
 	v := tea.NewView(content)
