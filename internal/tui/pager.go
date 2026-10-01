@@ -30,6 +30,9 @@ func (m Model) focusedPR() *model.PR {
 			return rows[m.cursor].pr
 		}
 	}
+	if m.screen == screenConfirm || m.screen == screenResults {
+		return m.findPR(m.list.focusedRef())
+	}
 	return nil
 }
 

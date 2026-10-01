@@ -62,6 +62,18 @@ type Model struct {
 	pager       viewport.Model
 	pagerTitle  string
 	pagerReturn screen
+
+	confirmPRs []*model.PR
+	list       listView
+
+	runCtx     context.Context
+	cancel     context.CancelFunc
+	ch         chan tea.Msg
+	phase      phase
+	cancelling bool
+	logs       []string
+	results    []model.Result
+	total      int
 }
 
 func New(ctx context.Context, snap *model.Snapshot, deps Deps) Model {
@@ -99,12 +111,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.status = "Opened " + msg.ref + " in the browser."
 		}
 		return m, nil
+	case refreshedMsg:
+		return m.onRefreshed(msg)
+	case resultMsg:
+		m.addResult(msg.result)
+		return m, waitFor(m.ch)
+	case execDoneMsg:
+		m.finish("")
+		return m, nil
 	case tea.KeyPressMsg:
 		if msg.String() == "ctrl+c" && m.screen != screenProgress {
 			m.interrupted = true
 			return m, tea.Quit
 		}
 		if m.tooSmall() {
+			if m.screen == screenProgress && msg.String() == "ctrl+c" {
+				return m.updateProgress(msg)
+			}
 			if k := msg.String(); k == "q" || k == "esc" {
 				return m, tea.Quit
 			}
@@ -115,6 +138,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateList(msg)
 		case screenPager:
 			return m.updatePager(msg)
+		case screenConfirm:
+			return m.updateConfirm(msg)
+		case screenProgress:
+			return m.updateProgress(msg)
+		case screenResults:
+			return m.updateResults(msg)
 		}
 	}
 	if m.screen == screenPager {
@@ -135,6 +164,12 @@ func (m Model) View() tea.View {
 			content = m.viewList()
 		case screenPager:
 			content = m.viewPager()
+		case screenConfirm:
+			content = m.viewConfirm()
+		case screenProgress:
+			content = m.viewProgress()
+		case screenResults:
+			content = m.viewResults()
 		}
 	}
 	v := tea.NewView(content)

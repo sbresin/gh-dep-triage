@@ -73,7 +73,9 @@ func (m Model) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "c":
 		if m.selectedCount() == 0 {
 			m.status = "Select at least one PR before confirming."
+			break
 		}
+		return m.startConfirm()
 	}
 	m.fixScroll()
 	return m, nil
