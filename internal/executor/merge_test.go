@@ -10,14 +10,13 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/sbresin/gh-dep-triage/internal/github/githubtest"
 	"github.com/sbresin/gh-dep-triage/internal/model"
-	"github.com/sbresin/gh-dep-triage/internal/plan"
 )
 
 func mergeOne(t *testing.T, f *githubtest.Fake, ref string) (model.Result, *sleeps) {
 	t.Helper()
-	var s sleeps
-	got := Run(context.Background(), f, []plan.Task{task(f, "merge", ref)}, opts(&s))
-	return got[0], &s
+	s := &sleeps{}
+	got, _ := runAll(t, context.Background(), f, opts(s), job(f, "merge", ref))
+	return got[0], s
 }
 
 func newMergeFake(mods ...func(*model.PR)) *githubtest.Fake {
@@ -57,27 +56,7 @@ func TestMergeEnablesAutoMergeWhilePending(t *testing.T) {
 		t.Errorf("got %+v", r)
 	}
 	if diff := cmp.Diff([]string{"automerge acme/api#1 sha1 SQUASH"}, f.Calls); diff != "" {
-		t.Errorf("approved PR needs no approve and no refetch (-want +got):\n%s", diff)
-	}
-}
-
-func TestMergePollsUnknownThenMerges(t *testing.T) {
-	f := newMergeFake()
-	polls := 0
-	f.AfterApprove["acme/api#1"] = func(p *model.PR) { p.MergeStateStatus = "UNKNOWN" }
-	wrapped := &pollFake{Fake: f, onFetch: func(p *model.PR) {
-		polls++
-		if polls == 3 {
-			p.MergeStateStatus = "CLEAN"
-		}
-	}}
-	var s sleeps
-	got := Run(context.Background(), wrapped, []plan.Task{task(f, "merge", "acme/api#1")}, opts(&s))
-	if got[0].Status != model.ResultSuccess || got[0].Steps[1] != "merged (squash)" {
-		t.Errorf("got %+v", got[0])
-	}
-	if diff := cmp.Diff([]time.Duration{DefaultPollInterval, DefaultPollInterval}, s.d); diff != "" {
-		t.Errorf("poll sleeps (-want +got):\n%s", diff)
+		t.Errorf("approved PR needs no approve (-want +got):\n%s", diff)
 	}
 }
 
@@ -91,6 +70,26 @@ type pollFake struct {
 func (p *pollFake) FetchPRs(ctx context.Context, viewer string, refs []model.PRRef) ([]*model.PR, []model.Problem, error) {
 	p.onFetch(p.PRs[refs[0].String()])
 	return p.Fake.FetchPRs(ctx, viewer, refs)
+}
+
+func TestMergePollsUnknownThenMerges(t *testing.T) {
+	f := newMergeFake()
+	polls := 0
+	f.AfterApprove["acme/api#1"] = func(p *model.PR) { p.MergeStateStatus = "UNKNOWN" }
+	wrapped := &pollFake{Fake: f, onFetch: func(p *model.PR) {
+		polls++
+		if polls == 4 { // fetch 1 is the pre-run check; 2 and 3 still see UNKNOWN
+			p.MergeStateStatus = "CLEAN"
+		}
+	}}
+	s := &sleeps{}
+	got, _ := runAll(t, context.Background(), wrapped, opts(s), job(f, "merge", "acme/api#1"))
+	if got[0].Status != model.ResultSuccess || got[0].Steps[1] != "merged (squash)" {
+		t.Errorf("got %+v", got[0])
+	}
+	if diff := cmp.Diff([]time.Duration{DefaultPollInterval, DefaultPollInterval}, s.got()); diff != "" {
+		t.Errorf("poll sleeps (-want +got):\n%s", diff)
+	}
 }
 
 func TestMergeSkips(t *testing.T) {
@@ -110,6 +109,16 @@ func TestMergeSkips(t *testing.T) {
 				t.Errorf("got %+v calls %v", r, f.Calls)
 			}
 		})
+	}
+}
+
+func TestMergePreSkipsUseFreshData(t *testing.T) {
+	f := newMergeFake()
+	j := job(f, "merge", "acme/api#1") // confirmed while auto-merge was off
+	f.PRs["acme/api#1"].AutoMerge = true
+	got, _ := runAll(t, context.Background(), f, opts(&sleeps{}), j)
+	if got[0].Status != model.ResultSkipped || got[0].Reason != model.ReasonAlreadyMerging || len(f.Calls) != 0 {
+		t.Errorf("got %+v calls %v", got[0], f.Calls)
 	}
 }
 
@@ -193,7 +202,7 @@ func TestMergePollsExhaustedEnablesAutoMerge(t *testing.T) {
 	if r.Status != model.ResultSuccess || !cmp.Equal(r.Steps, []string{"approved", "auto-merge enabled (squash)"}) {
 		t.Errorf("got %+v", r)
 	}
-	if diff := cmp.Diff([]time.Duration{DefaultPollInterval, DefaultPollInterval, DefaultPollInterval}, s.d); diff != "" {
+	if diff := cmp.Diff([]time.Duration{DefaultPollInterval, DefaultPollInterval, DefaultPollInterval}, s.got()); diff != "" {
 		t.Errorf("poll sleeps (-want +got):\n%s", diff)
 	}
 }
@@ -201,16 +210,13 @@ func TestMergePollsExhaustedEnablesAutoMerge(t *testing.T) {
 func TestMergeCancelledBeforeFurtherMutations(t *testing.T) {
 	tests := []struct {
 		name  string
-		setup func(f *githubtest.Fake, cancel context.CancelFunc, o *Options)
+		setup func(f *githubtest.Fake, cancel context.CancelFunc, s *sleeps)
 	}{
-		{"during poll sleep", func(f *githubtest.Fake, cancel context.CancelFunc, o *Options) {
+		{"during poll sleep", func(f *githubtest.Fake, cancel context.CancelFunc, s *sleeps) {
 			f.AfterApprove["acme/api#1"] = func(p *model.PR) { p.MergeStateStatus = "UNKNOWN" }
-			o.Sleep = func(ctx context.Context, _ time.Duration) error {
-				cancel()
-				return ctx.Err()
-			}
+			s.hook = func(time.Duration) { cancel() }
 		}},
-		{"before refetch", func(f *githubtest.Fake, cancel context.CancelFunc, _ *Options) {
+		{"before refetch", func(f *githubtest.Fake, cancel context.CancelFunc, _ *sleeps) {
 			f.AfterApprove["acme/api#1"] = func(p *model.PR) {
 				p.MergeStateStatus = "CLEAN"
 				cancel()
@@ -222,10 +228,10 @@ func TestMergeCancelledBeforeFurtherMutations(t *testing.T) {
 			f := newMergeFake()
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			var s sleeps
-			o := opts(&s)
-			tt.setup(f, cancel, &o)
-			r := Run(ctx, f, []plan.Task{task(f, "merge", "acme/api#1")}, o)[0]
+			s := &sleeps{}
+			tt.setup(f, cancel, s)
+			got, _ := runAll(t, ctx, f, opts(s), job(f, "merge", "acme/api#1"))
+			r := got[0]
 			if r.Status != model.ResultSkipped || r.Reason != model.ReasonCancelled || !cmp.Equal(r.Steps, []string{"approved"}) {
 				t.Errorf("got %+v", r)
 			}
@@ -274,12 +280,12 @@ func (b *blockingFake) Merge(ctx context.Context, _, _, _ string) error {
 
 func TestMergeMutationTimesOut(t *testing.T) {
 	f := newMergeFake(approved, func(p *model.PR) { p.MergeStateStatus = "CLEAN" })
-	var s sleeps
-	o := opts(&s)
+	o := opts(&sleeps{})
 	o.MutationTimeout = 10 * time.Millisecond
 	done := make(chan model.Result)
 	go func() {
-		done <- Run(context.Background(), &blockingFake{f}, []plan.Task{task(f, "merge", "acme/api#1")}, o)[0]
+		got, _ := runAll(t, context.Background(), &blockingFake{f}, o, job(f, "merge", "acme/api#1"))
+		done <- got[0]
 	}()
 	select {
 	case r := <-done:
@@ -287,6 +293,6 @@ func TestMergeMutationTimesOut(t *testing.T) {
 			t.Errorf("got %+v", r)
 		}
 	case <-time.After(5 * time.Second):
-		t.Fatal("Run did not return: the mutation has no timeout")
+		t.Fatal("the job did not finish: the mutation has no timeout")
 	}
 }

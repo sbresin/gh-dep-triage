@@ -1,4 +1,3 @@
-// Package executor runs resolved plan tasks against GitHub.
 package executor
 
 import (
@@ -6,130 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
-	"time"
 
-	"github.com/sbresin/gh-dep-triage/internal/github"
 	"github.com/sbresin/gh-dep-triage/internal/model"
-	"github.com/sbresin/gh-dep-triage/internal/plan"
+	"github.com/sbresin/gh-dep-triage/internal/policy"
 	"github.com/sbresin/gh-dep-triage/internal/triage"
 )
 
-const (
-	DefaultRepoParallel = 2
-	DefaultDelay        = 2 * time.Second
-	DefaultPollInterval = time.Second
-	mutationTimeout     = 30 * time.Second
-	unknownPolls        = 3
-)
-
-type Options struct {
-	Viewer       string
-	RepoParallel int
-	Delay        time.Duration
-	PollInterval time.Duration
-	// MutationTimeout bounds each mutation call; it is not cancelled by ctx.
-	MutationTimeout time.Duration
-	Sleep           func(context.Context, time.Duration) error
-	OnResult        func(model.Result)
-}
-
-func (o Options) withDefaults() Options {
-	if o.RepoParallel <= 0 {
-		o.RepoParallel = DefaultRepoParallel
-	}
-	if o.Delay == 0 {
-		o.Delay = DefaultDelay
-	}
-	if o.PollInterval == 0 {
-		o.PollInterval = DefaultPollInterval
-	}
-	if o.MutationTimeout <= 0 {
-		o.MutationTimeout = mutationTimeout
-	}
-	if o.Sleep == nil {
-		o.Sleep = sleepCtx
-	}
-	if o.OnResult == nil {
-		o.OnResult = func(model.Result) {}
-	}
-	return o
-}
-
-func sleepCtx(ctx context.Context, d time.Duration) error {
-	t := time.NewTimer(d)
-	defer t.Stop()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-t.C:
-		return nil
-	}
-}
-
-type executor struct {
-	c github.Client
-	o Options
-}
-
-// Run executes tasks serially per repo, at most RepoParallel repos at once,
-// and returns one result per task in task order.
-func Run(ctx context.Context, c github.Client, tasks []plan.Task, o Options) []model.Result {
-	o = o.withDefaults()
-	e := &executor{c: c, o: o}
-	results := make([]model.Result, len(tasks))
-	var mu sync.Mutex
-	emit := func(i int, r model.Result) {
-		mu.Lock()
-		defer mu.Unlock()
-		results[i] = r
-		o.OnResult(r)
-	}
-
-	var repos []string
-	byRepo := map[string][]int{}
-	for i, t := range tasks {
-		if t.Result != nil {
-			emit(i, *t.Result)
-			continue
-		}
-		repo := strings.ToLower(t.PR.Repo)
-		if _, ok := byRepo[repo]; !ok {
-			repos = append(repos, repo)
-		}
-		byRepo[repo] = append(byRepo[repo], i)
-	}
-
-	queue := make(chan []int, len(repos))
-	for _, r := range repos {
-		queue <- byRepo[r]
-	}
-	close(queue)
-	var wg sync.WaitGroup
-	for range min(o.RepoParallel, len(repos)) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for idx := range queue {
-				for k, i := range idx {
-					if k > 0 && ctx.Err() == nil {
-						_ = o.Sleep(ctx, o.Delay)
-					}
-					if ctx.Err() != nil {
-						emit(i, cancelled(tasks[i]))
-						continue
-					}
-					emit(i, e.run(ctx, tasks[i]))
-				}
-			}
-		}()
-	}
-	wg.Wait()
-	return results
-}
-
-func newResult(t plan.Task) model.Result {
-	return model.Result{Action: t.Action, Ref: t.PR.Ref, HeadOid: t.PR.HeadOid, Steps: []string{}}
+func newResult(action string, pr *model.PR) model.Result {
+	return model.Result{Action: action, Ref: pr.Ref, HeadOid: pr.HeadOid, Steps: []string{}}
 }
 
 func finish(r model.Result, status, reason, message string) model.Result {
@@ -137,35 +20,58 @@ func finish(r model.Result, status, reason, message string) model.Result {
 	return r
 }
 
-func cancelled(t plan.Task) model.Result {
-	return finish(newResult(t), model.ResultSkipped, model.ReasonCancelled, "cancelled before it started")
+func cancelledResult(action string, pr *model.PR) model.Result {
+	return finish(newResult(action, pr), model.ResultSkipped, model.ReasonCancelled, "cancelled before it started")
 }
 
-func (e *executor) run(ctx context.Context, t plan.Task) model.Result {
-	switch t.Action {
+// run executes one job: refetch the PR, check it is still open, at the
+// pinned head (j.PR.HeadOid) and allowed by the hard rules, then act on the
+// fresh data.
+func (q *Queue) run(ctx context.Context, j Job, step func(string)) model.Result {
+	r := newResult(j.Action, j.PR)
+	if ctx.Err() != nil {
+		return cancelledResult(j.Action, j.PR)
+	}
+	step("checking")
+	fresh, err := q.fetch(ctx, j.PR.PRRef())
+	switch {
+	case ctx.Err() != nil:
+		return cancelledResult(j.Action, j.PR)
+	case err != nil:
+		return finish(r, model.ResultFailed, model.ReasonRefetchFailed, err.Error())
+	case fresh.State != "OPEN":
+		return finish(r, model.ResultSkipped, model.ReasonNotOpen, "pull request is "+strings.ToLower(fresh.State))
+	case fresh.HeadOid != j.PR.HeadOid:
+		return finish(r, model.ResultFailed, model.ReasonHeadChanged,
+			fmt.Sprintf("head moved from %s to %s since you confirmed", j.PR.HeadOid, fresh.HeadOid))
+	}
+	if v := policy.Evaluate(j.Action, fresh, policy.Rules{Bots: q.o.Rules.Bots}); !v.Allow {
+		return finish(r, model.ResultDenied, v.Reason, v.Message)
+	}
+	switch j.Action {
 	case model.ActionApprove:
-		return e.approve(ctx, t)
+		return q.approve(ctx, r, fresh, step)
 	case model.ActionMerge:
-		return e.merge(ctx, t)
+		return q.merge(ctx, r, fresh, step)
 	default:
-		return finish(newResult(t), model.ResultFailed, model.ReasonMutationFailed, "unsupported action "+t.Action)
+		return finish(r, model.ResultFailed, model.ReasonMutationFailed, "unsupported action "+j.Action)
 	}
 }
 
 // mutate runs one mutation that finishes even when ctx is cancelled (so an
 // in-flight request is never abandoned) but is bounded by MutationTimeout.
-func (e *executor) mutate(ctx context.Context, fn func(context.Context) error) error {
-	mctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), e.o.MutationTimeout)
+func (q *Queue) mutate(ctx context.Context, fn func(context.Context) error) error {
+	mctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), q.o.MutationTimeout)
 	defer cancel()
 	return fn(mctx)
 }
 
-func (e *executor) approve(ctx context.Context, t plan.Task) model.Result {
-	r := newResult(t)
-	if t.PR.ViewerApproved {
+func (q *Queue) approve(ctx context.Context, r model.Result, pr *model.PR, step func(string)) model.Result {
+	if pr.ViewerApproved {
 		return finish(r, model.ResultSkipped, model.ReasonAlreadyApproved, "")
 	}
-	if err := e.mutate(ctx, func(c context.Context) error { return e.c.Approve(c, t.PR.ID, t.PR.HeadOid) }); err != nil {
+	step("approving")
+	if err := q.mutate(ctx, func(c context.Context) error { return q.c.Approve(c, pr.ID, pr.HeadOid) }); err != nil {
 		return finish(r, model.ResultFailed, model.ReasonMutationFailed, err.Error())
 	}
 	r.Steps = append(r.Steps, "approved")
@@ -187,9 +93,7 @@ func MergeMethod(s model.RepoSettings) string {
 	return ""
 }
 
-func (e *executor) merge(ctx context.Context, t plan.Task) model.Result {
-	r := newResult(t)
-	pr := t.PR
+func (q *Queue) merge(ctx context.Context, r model.Result, pr *model.PR, step func(string)) model.Result {
 	if pr.AutoMerge {
 		return finish(r, model.ResultSkipped, model.ReasonAlreadyMerging, "auto-merge is already enabled")
 	}
@@ -207,15 +111,17 @@ func (e *executor) merge(ctx context.Context, t plan.Task) model.Result {
 	cur := pr
 	refetch := pr.MergeStateStatus == "UNKNOWN"
 	if !pr.ViewerApproved {
-		if err := e.mutate(ctx, func(c context.Context) error { return e.c.Approve(c, pr.ID, pr.HeadOid) }); err != nil {
+		step("approving")
+		if err := q.mutate(ctx, func(c context.Context) error { return q.c.Approve(c, pr.ID, pr.HeadOid) }); err != nil {
 			return finish(r, model.ResultFailed, model.ReasonMutationFailed, err.Error())
 		}
 		r.Steps = append(r.Steps, "approved")
 		refetch = true
 	}
 	if refetch {
+		step("refreshing")
 		var err error
-		cur, err = e.refetch(ctx, pr)
+		cur, err = q.refetch(ctx, pr)
 		if ctx.Err() != nil {
 			return finish(r, model.ResultSkipped, model.ReasonCancelled, "cancelled before merging")
 		}
@@ -245,14 +151,16 @@ func (e *executor) merge(ctx context.Context, t plan.Task) model.Result {
 	label := strings.ToLower(method)
 	switch {
 	case cur.MergeStateStatus == "CLEAN" || cur.MergeStateStatus == "HAS_HOOKS":
-		if err := e.mutate(ctx, func(c context.Context) error { return e.c.Merge(c, cur.ID, pr.HeadOid, method) }); err != nil {
+		step("merging")
+		if err := q.mutate(ctx, func(c context.Context) error { return q.c.Merge(c, cur.ID, pr.HeadOid, method) }); err != nil {
 			return finish(r, model.ResultFailed, model.ReasonMutationFailed, err.Error())
 		}
 		r.Steps = append(r.Steps, "merged ("+label+")")
 	case cur.MergeStateStatus == "DIRTY":
 		return finish(r, model.ResultSkipped, model.ReasonNotMergeable, "merge conflicts with "+cur.BaseRef)
 	case cur.RepoSettings.AutoMergeAllowed:
-		if err := e.mutate(ctx, func(c context.Context) error { return e.c.EnableAutoMerge(c, cur.ID, pr.HeadOid, method) }); err != nil {
+		step("enabling auto-merge")
+		if err := q.mutate(ctx, func(c context.Context) error { return q.c.EnableAutoMerge(c, cur.ID, pr.HeadOid, method) }); err != nil {
 			return finish(r, model.ResultFailed, model.ReasonMutationFailed, err.Error())
 		}
 		r.Steps = append(r.Steps, "auto-merge enabled ("+label+")")
@@ -263,26 +171,34 @@ func (e *executor) merge(ctx context.Context, t plan.Task) model.Result {
 	return finish(r, model.ResultSuccess, "", "")
 }
 
+// fetch loads and enriches one PR.
+func (q *Queue) fetch(ctx context.Context, ref model.PRRef) (*model.PR, error) {
+	prs, warns, err := q.c.FetchPRs(ctx, q.o.Viewer, []model.PRRef{ref})
+	if err != nil {
+		return nil, err
+	}
+	if len(prs) == 0 {
+		msg := "pull request not returned"
+		if len(warns) > 0 {
+			msg = warns[0].Message
+		}
+		return nil, errors.New(msg)
+	}
+	triage.Enrich(prs[0])
+	return prs[0], nil
+}
+
 // refetch reloads one PR, polling while GitHub still computes mergeability.
-func (e *executor) refetch(ctx context.Context, pr *model.PR) (*model.PR, error) {
+func (q *Queue) refetch(ctx context.Context, pr *model.PR) (*model.PR, error) {
 	for attempt := 0; ; attempt++ {
-		prs, warns, err := e.c.FetchPRs(ctx, e.o.Viewer, []model.PRRef{pr.PRRef()})
+		cur, err := q.fetch(ctx, pr.PRRef())
 		if err != nil {
 			return nil, err
 		}
-		if len(prs) == 0 {
-			msg := "pull request not returned"
-			if len(warns) > 0 {
-				msg = warns[0].Message
-			}
-			return nil, errors.New(msg)
-		}
-		cur := prs[0]
-		triage.Enrich(cur)
 		if cur.MergeStateStatus != "UNKNOWN" || attempt >= unknownPolls {
 			return cur, nil
 		}
-		if err := e.o.Sleep(ctx, e.o.PollInterval); err != nil {
+		if err := q.o.Sleep(ctx, q.o.PollInterval); err != nil {
 			return nil, err
 		}
 	}
