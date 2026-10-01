@@ -1,0 +1,8 @@
+STATUS   ACTION  REF          REASON                      DETAIL
+planned  merge   acme/api#1   -                           -
+denied   merge   acme/web#2   checks_failing              2 failing check(s): test, ci/legacy
+denied   merge   acme/api#4   major_requires_allow_major  major bump; pass --allow-major to merge it
+failed   merge   acme/api#99  not_eligible                not in your triage snapshot (no review requested and not approved by you)
+
+4 items: 1 planned, 0 succeeded, 0 skipped, 1 failed, 2 denied
+Dry run: nothing was changed. Re-run with --yes to execute.

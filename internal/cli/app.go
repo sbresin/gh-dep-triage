@@ -167,5 +167,7 @@ func (a *app) rootCmd() *cobra.Command {
 	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return &usageError{msg: err.Error()} })
 	root.AddCommand(a.listCmd())
 	root.AddCommand(a.showCmd())
+	root.AddCommand(a.mutateCmd(model.ActionApprove, "Approve dependency PRs (dry run unless --yes)"))
+	root.AddCommand(a.mutateCmd(model.ActionMerge, "Approve if needed, then merge or enable auto-merge (dry run unless --yes)"))
 	return root
 }

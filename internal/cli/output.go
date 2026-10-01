@@ -9,6 +9,7 @@ import (
 
 	"github.com/sbresin/gh-dep-triage/internal/github"
 	"github.com/sbresin/gh-dep-triage/internal/model"
+	"github.com/sbresin/gh-dep-triage/internal/plan"
 	"github.com/sbresin/gh-dep-triage/internal/triage"
 )
 
@@ -22,6 +23,8 @@ type output struct {
 	data     any
 	warnings []model.Problem
 	human    func(io.Writer)
+	dryRun   bool
+	code     int
 }
 
 type envelope struct {
@@ -39,6 +42,7 @@ func toProblem(err error) model.Problem {
 	var re *triage.RefError
 	var ue *usageError
 	var ce *configError
+	var pe *plan.Error
 	switch {
 	case errors.As(err, &re):
 		return model.Problem{Code: re.Code, Message: re.Message, Ref: re.Ref, Candidates: re.Candidates}
@@ -48,6 +52,8 @@ func toProblem(err error) model.Problem {
 		return model.Problem{Code: "not_authenticated", Message: err.Error()}
 	case errors.As(err, &ce):
 		return model.Problem{Code: "invalid_config", Message: err.Error()}
+	case errors.As(err, &pe):
+		return model.Problem{Code: "invalid_argument", Message: pe.Message}
 	default:
 		return model.Problem{Code: "error", Message: err.Error()}
 	}
@@ -73,7 +79,7 @@ func (a *app) emit(out output, err error) error {
 		enc.SetIndent("", "  ")
 		enc.SetEscapeHTML(false)
 		env := envelope{SchemaVersion: model.SchemaVersion, Command: out.command, Viewer: out.viewer,
-			GeneratedAt: a.now().UTC(), Data: data, Warnings: warnings, Errors: errs}
+			GeneratedAt: a.now().UTC(), DryRun: out.dryRun, Data: data, Warnings: warnings, Errors: errs}
 		if encErr := enc.Encode(env); encErr != nil {
 			return encErr
 		}
@@ -96,6 +102,9 @@ func (a *app) emit(out output, err error) error {
 	}
 	if err != nil {
 		return &exitError{code: ExitError}
+	}
+	if out.code != ExitOK {
+		return &exitError{code: out.code}
 	}
 	return nil
 }
