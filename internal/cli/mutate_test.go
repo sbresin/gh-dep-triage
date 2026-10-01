@@ -1,11 +1,16 @@
 package cli
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/sbresin/gh-dep-triage/internal/executor"
 	"github.com/sbresin/gh-dep-triage/internal/github/githubtest"
 	"github.com/sbresin/gh-dep-triage/internal/model"
 )
@@ -160,5 +165,60 @@ func TestExitCodeFor(t *testing.T) {
 		if got := exitCodeFor(tt.rs, tt.dryRun); got != tt.want {
 			t.Errorf("exitCodeFor(%v, %v) = %d, want %d", tt.rs, tt.dryRun, got, tt.want)
 		}
+	}
+}
+
+func runAppCtx(t *testing.T, ctx context.Context, a *app, args ...string) (int, string, string) {
+	t.Helper()
+	var out, errOut bytes.Buffer
+	a.stdout, a.stderr = &out, &errOut
+	code := a.execute(ctx, args)
+	return code, out.String(), errOut.String()
+}
+
+// A head that moves between planning and running is caught by the queue's
+// pre-run check.
+func TestYesHeadMovedBeforeRun(t *testing.T) {
+	f := sampleFake()
+	a := testApp(f)
+	var once sync.Once
+	a.sleep = func(ctx context.Context, d time.Duration) error {
+		if d == executor.DefaultDelay {
+			// A new commit lands on #4 during the cooldown after #1.
+			once.Do(func() { f.PRs["acme/api#4"].HeadOid = "sha-new" })
+		}
+		return ctx.Err()
+	}
+	code, out, _ := runApp(t, a, "approve", "acme/api#1", "acme/api#4", "--allow-major", "--yes", "--json")
+	got := decodeResults(t, out).Data.Results
+	if diff := cmp.Diff([]string{"acme/api#1 success", "acme/api#4 failed head_changed"}, summary(got)); diff != "" {
+		t.Fatalf("(-want +got):\n%s", diff)
+	}
+	if !strings.Contains(got[1].Message, "since you confirmed") || code != ExitPartial {
+		t.Errorf("code=%d message=%q", code, got[1].Message)
+	}
+	if diff := cmp.Diff([]string{"approve acme/api#1 sha1"}, f.Calls); diff != "" {
+		t.Errorf("calls (-want +got):\n%s", diff)
+	}
+}
+
+func TestYesCtrlCMidRunExitsPartial(t *testing.T) {
+	f := sampleFake()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	a := testApp(f)
+	a.sleep = func(c context.Context, d time.Duration) error {
+		if d == executor.DefaultDelay {
+			cancel() // Ctrl-C during the cooldown after the first PR
+		}
+		return c.Err()
+	}
+	code, out, errOut := runAppCtx(t, ctx, a, "approve", "acme/api#1", "acme/api#3", "--yes", "--json")
+	got := summary(decodeResults(t, out).Data.Results)
+	if diff := cmp.Diff([]string{"acme/api#1 success", "acme/api#3 skipped cancelled"}, got); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+	if code != ExitPartial || !strings.Contains(errOut, "skipped approve acme/api#3: cancelled before it started") {
+		t.Errorf("code=%d stderr=%q", code, errOut)
 	}
 }

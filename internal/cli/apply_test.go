@@ -81,3 +81,22 @@ func TestApplyHonoursAllowMajor(t *testing.T) {
 		t.Errorf("without --allow-major: results = %v", got)
 	}
 }
+
+// One PR with two different actions is two jobs, run in plan order.
+func TestApplyApproveThenMergeSamePR(t *testing.T) {
+	f := sampleFake()
+	f.AfterApprove["acme/api#1"] = func(p *model.PR) { p.MergeStateStatus = "CLEAN" }
+	a := testApp(f)
+	a.stdin = strings.NewReader(`[{"action":"approve","ref":"acme/api#1"},{"action":"merge","ref":"acme/api#1"}]`)
+	code, out, _ := runApp(t, a, "apply", "--plan", "-", "--yes", "--json")
+	got := decodeResults(t, out).Data.Results
+	if diff := cmp.Diff([]string{"acme/api#1 success", "acme/api#1 success"}, summary(got)); diff != "" {
+		t.Fatalf("(-want +got):\n%s", diff)
+	}
+	if code != ExitOK || !cmp.Equal(got[1].Steps, []string{"merged (squash)"}) {
+		t.Errorf("code=%d merge steps=%v", code, got[1].Steps)
+	}
+	if diff := cmp.Diff([]string{"approve acme/api#1 sha1", "merge acme/api#1 sha1 SQUASH"}, f.Calls); diff != "" {
+		t.Errorf("calls (-want +got):\n%s", diff)
+	}
+}

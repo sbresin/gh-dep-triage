@@ -1,11 +1,13 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 
 	"github.com/spf13/cobra"
 	"github.com/sbresin/gh-dep-triage/internal/executor"
+	"github.com/sbresin/gh-dep-triage/internal/github"
 	"github.com/sbresin/gh-dep-triage/internal/model"
 	"github.com/sbresin/gh-dep-triage/internal/plan"
 	"github.com/sbresin/gh-dep-triage/internal/policy"
@@ -76,9 +78,7 @@ func (a *app) runPlan(cmd *cobra.Command, name string, items []plan.Item, mo mut
 		runIdx = append(runIdx, i)
 	}
 	if len(run) > 0 {
-		got := executor.Run(cmd.Context(), client, run, executor.Options{
-			Viewer: snap.Viewer, Sleep: a.sleep, OnResult: a.progressResult,
-		})
+		got := a.runQueue(cmd.Context(), client, snap.Viewer, run)
 		for k, i := range runIdx {
 			results[i] = got[k]
 		}
@@ -87,6 +87,40 @@ func (a *app) runPlan(cmd *cobra.Command, name string, items []plan.Item, mo mut
 	out.code = exitCodeFor(results, !mo.yes)
 	out.human = func(w io.Writer) { writeResults(w, results, !mo.yes) }
 	return a.emit(out, nil)
+}
+
+// runQueue submits tasks to a fresh queue, prints a progress line for every
+// finished job and returns the results in task order. Jobs are queued while
+// the queue is paused so they start in task order; Close(false) resumes it
+// and returns once every job has run (or, after Ctrl-C, been cancelled).
+func (a *app) runQueue(ctx context.Context, client github.Client, viewer string, tasks []plan.Task) []model.Result {
+	q := executor.NewQueue(ctx, client, executor.Options{Viewer: viewer, Rules: policy.Rules{Bots: a.cfg.Bots}, Sleep: a.sleep})
+	results := make([]model.Result, len(tasks))
+	idx := map[executor.JobID]int{}
+	q.Pause()
+	for i, t := range tasks {
+		id, err := q.Submit(t.Action, t.PR)
+		if err != nil { // the queue closed: Ctrl-C arrived before this task was queued
+			results[i] = model.Result{Action: t.Action, Ref: t.PR.Ref, HeadOid: t.PR.HeadOid, Steps: []string{},
+				Status: model.ResultSkipped, Reason: model.ReasonCancelled, Message: "cancelled before it started"}
+			a.progressResult(results[i])
+			continue
+		}
+		idx[id] = i
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for ev := range q.Events() {
+			if i, ok := idx[ev.Job.ID]; ok && ev.Kind == executor.EventFinished {
+				results[i] = ev.Job.Result
+				a.progressResult(ev.Job.Result)
+			}
+		}
+	}()
+	q.Close(false)
+	<-done
+	return results
 }
 
 func (a *app) progressResult(r model.Result) {
