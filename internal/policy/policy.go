@@ -48,8 +48,13 @@ func Evaluate(action string, pr *model.PR, r Rules) Verdict {
 	if len(r.AllowRepos) > 0 && !matchAny(r.AllowRepos, pr.Repo) {
 		return deny(model.ReasonRepoNotAllowed, "%s is not on the repo allow list", pr.Repo)
 	}
-	if pr.Bump == model.BumpMajor && !r.AllowMajor && (action == model.ActionMerge || (action == model.ActionApprove && pr.AutoMerge)) {
-		return deny(model.ReasonMajorNeedsFlag, "major bump; pass --allow-major to %s it", action)
+	if !r.AllowMajor && (action == model.ActionMerge || (action == model.ActionApprove && pr.AutoMerge)) {
+		if pr.Bump == model.BumpMajor {
+			return deny(model.ReasonMajorNeedsFlag, "major bump; pass --allow-major to %s it", action)
+		}
+		if pr.Bump == model.BumpUnknown && pr.TargetVersion == "" {
+			return deny(model.ReasonMajorNeedsFlag, "bump type unknown; pass --allow-major to %s it", action)
+		}
 	}
 	return Verdict{Allow: true}
 }

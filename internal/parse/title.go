@@ -41,14 +41,25 @@ func ParseTitle(title string) Title {
 		if !strings.Contains(pkg, "/") {
 			pkg = "hashicorp/" + pkg
 		}
-		return Title{Package: pkg, PackageKey: NormalizePackage(pkg), Target: cleanToken(m[2]), Bump: model.BumpUnknown}
+		target := cleanToken(m[2])
+		return Title{Package: pkg, PackageKey: NormalizePackage(pkg), Target: target, Bump: renovateBump(target)}
 	}
 	if m := renovateGenericRe.FindStringSubmatch(title); m != nil {
 		pkg := trailingActionRe.ReplaceAllString(cleanToken(m[1]), "")
-		return Title{Package: pkg, PackageKey: NormalizePackage(pkg), Target: cleanToken(m[2]), Bump: model.BumpUnknown}
+		target := cleanToken(m[2])
+		return Title{Package: pkg, PackageKey: NormalizePackage(pkg), Target: target, Bump: renovateBump(target)}
 	}
 	fallback := strings.TrimSpace(title)
 	return Title{Package: fallback, PackageKey: NormalizePackage(fallback), Bump: model.BumpUnknown}
+}
+
+// renovateBump classifies a Renovate target: Renovate's default title uses
+// "to v<major>" only for major updates.
+func renovateBump(target string) string {
+	if len(versionSegments(target)) == 1 {
+		return model.BumpMajor
+	}
+	return model.BumpUnknown
 }
 
 func NormalizePackage(s string) string {
