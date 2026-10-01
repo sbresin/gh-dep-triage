@@ -128,7 +128,7 @@ func (a *app) rootCmd() *cobra.Command {
 	}
 	f := root.PersistentFlags()
 	f.IntVar(&a.opts.limit, "limit", 200, "maximum results per search")
-	f.IntVar(&a.opts.workers, "workers", 4, "parallel GraphQL requests while loading")
+	f.IntVar(&a.opts.workers, "workers", 16, "parallel GraphQL requests while loading")
 	f.StringVar(&a.opts.team, "team", "", "use review requests for a team (team or org/team) instead of you")
 	f.BoolVar(&a.opts.json, "json", false, "print a JSON envelope on stdout")
 	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return &usageError{msg: err.Error()} })

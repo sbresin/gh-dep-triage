@@ -92,11 +92,21 @@ func TestLoadBatchesWithinWorkerLimit(t *testing.T) {
 		sizes = append(sizes, len(b))
 	}
 	sort.Ints(sizes)
-	if diff := cmp.Diff([]int{10, 10, 10, 10, 10, 10}, sizes); diff != "" {
+	want := make([]int, 15)
+	for i := range want {
+		want[i] = 4
+	}
+	if diff := cmp.Diff(want, sizes); diff != "" {
 		t.Errorf("batch sizes (-want +got):\n%s", diff)
 	}
 	if len(snap.PRs()) != 60 {
 		t.Errorf("loaded %d PRs", len(snap.PRs()))
+	}
+}
+
+func TestDefaultWorkers(t *testing.T) {
+	if got := (Options{}).withDefaults().Workers; got != 16 {
+		t.Errorf("default workers = %d, want 16", got)
 	}
 }
 
@@ -112,14 +122,15 @@ func TestLoadBatchFailureBecomesWarnings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(snap.PRs()) != 19 {
-		t.Errorf("loaded %d PRs, want 19", len(snap.PRs()))
+	// Batches of 4: #30 shares the last batch with #29, so both fail.
+	if len(snap.PRs()) != 27 {
+		t.Errorf("loaded %d PRs, want 27", len(snap.PRs()))
 	}
 	codes := map[string]int{}
 	for _, w := range snap.Warnings {
 		codes[w.Code]++
 	}
-	if codes["fetch_failed"] != 10 || codes["not_found"] != 1 {
+	if codes["fetch_failed"] != 2 || codes["not_found"] != 1 {
 		t.Errorf("warnings = %+v", snap.Warnings)
 	}
 }

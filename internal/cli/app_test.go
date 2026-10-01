@@ -24,3 +24,10 @@ func TestVersionFlag(t *testing.T) {
 		t.Errorf("stdout = %q, want version", out)
 	}
 }
+
+func TestWorkersFlagDefault(t *testing.T) {
+	f := (&app{}).rootCmd().PersistentFlags().Lookup("workers")
+	if f == nil || f.DefValue != "16" {
+		t.Errorf("--workers default = %v, want 16", f)
+	}
+}

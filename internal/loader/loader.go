@@ -31,7 +31,7 @@ func (o Options) withDefaults() Options {
 		o.Limit = 200
 	}
 	if o.Workers <= 0 {
-		o.Workers = 4
+		o.Workers = 16
 	}
 	if len(o.Bots) == 0 {
 		o.Bots = DefaultBots
