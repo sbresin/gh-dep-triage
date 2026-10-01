@@ -97,6 +97,47 @@ func (m Model) startReload() (tea.Model, tea.Cmd) {
 	}
 }
 
+// onReloaded swaps in a reloaded snapshot. A selection is kept only while
+// its PR is still ready at the head the user saw.
+func (m Model) onReloaded(msg reloadedMsg) (tea.Model, tea.Cmd) {
+	m.reloading = false
+	status := ""
+	if msg.err != nil {
+		status = "Reload failed: " + msg.err.Error()
+	} else {
+		heads := map[string]string{}
+		for ref := range m.selected {
+			if pr := m.findPR(ref); pr != nil {
+				heads[ref] = pr.HeadOid
+			}
+		}
+		m.snap = msg.snap
+		moved := 0
+		for ref := range m.selected {
+			pr := m.findPR(ref)
+			switch {
+			case pr == nil || !selectable(pr):
+				delete(m.selected, ref)
+			case pr.HeadOid != heads[ref]:
+				delete(m.selected, ref)
+				moved++
+			}
+		}
+		m.fixScroll()
+		status = fmt.Sprintf("Reloaded %d PRs.", len(m.snap.PRs()))
+		if n := len(m.snap.Warnings); n > 0 {
+			status += fmt.Sprintf(" %d warning(s).", n)
+		}
+		if moved > 0 {
+			status += fmt.Sprintf(" %d selection(s) cleared: head moved.", moved)
+		}
+	}
+	if m.screen == screenList {
+		m.status = status
+	}
+	return m, nil
+}
+
 func (m *Model) toggle(r row) {
 	if r.isGroup() {
 		ready := groupSelectable(r.group)

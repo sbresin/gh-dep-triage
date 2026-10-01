@@ -39,6 +39,23 @@ func TestReloadPrunesSelection(t *testing.T) {
 	}
 }
 
+func TestReloadClearsSelectionWhoseHeadMoved(t *testing.T) {
+	fresh := snapshot(
+		mkPR("acme/api", 1, "Bump lodash from 4.17.20 to 4.17.21", func(p *model.PR) { p.HeadOid = "sha-new" }),
+		mkPR("acme/web", 2, "Bump lodash from 4.17.20 to 4.17.21"),
+	)
+	deps := Deps{Load: func(context.Context) (*model.Snapshot, error) { return fresh, nil }}
+	m, cmd := press(newTest(fixture(), deps), "j", "j", "space", "g")
+	nm, _ := m.Update(cmd())
+	m = nm.(Model)
+	if diff := cmp.Diff(map[string]bool{"acme/web#2": true}, m.selected); diff != "" {
+		t.Errorf("selection (-want +got):\n%s", diff)
+	}
+	if want := "Reloaded 2 PRs. 1 selection(s) cleared: head moved."; m.status != want {
+		t.Errorf("status = %q, want %q", m.status, want)
+	}
+}
+
 func TestReloadFromEmptyList(t *testing.T) {
 	deps := Deps{Load: func(context.Context) (*model.Snapshot, error) { return fixture(), nil }}
 	m, cmd := press(newTest(snapshot(), deps), "g")
