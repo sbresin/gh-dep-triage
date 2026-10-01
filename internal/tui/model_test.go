@@ -44,6 +44,8 @@ func key(s string) tea.KeyPressMsg {
 		return tea.KeyPressMsg{Code: tea.KeyEnter}
 	case "esc":
 		return tea.KeyPressMsg{Code: tea.KeyEscape}
+	case "tab":
+		return tea.KeyPressMsg{Code: tea.KeyTab}
 	case "down":
 		return tea.KeyPressMsg{Code: tea.KeyDown}
 	case "up":
@@ -89,7 +91,7 @@ func TestNavigationAndExpand(t *testing.T) {
 		t.Fatalf("cursor = %d, want clamped 2", m.cursor)
 	}
 	m, _ = press(m, "enter")
-	if len(m.rows()) != 5 || !strings.Contains(plain(m), "└") {
+	if len(m.rows()) != 5 || !strings.Contains(plain(m), "└ 󰄱 acme/web#2") {
 		t.Errorf("group should expand:\n%s", plain(m))
 	}
 	m, _ = press(m, "k", "up", "k", "k")
@@ -179,14 +181,14 @@ func TestTinyTerminal(t *testing.T) {
 
 func TestScrollFollowsCursor(t *testing.T) {
 	m := newTest(fixture(), Deps{})
-	nm, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 6})
+	nm, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 8})
 	m = nm.(Model)
 	m, _ = press(m, "j", "j", "enter", "j", "j")
 	if m.cursor != 4 || m.scroll != 2 {
 		t.Errorf("cursor=%d scroll=%d, want 4/2", m.cursor, m.scroll)
 	}
-	if lines := strings.Split(plain(m), "\n"); len(lines) != 6 {
-		t.Errorf("view has %d lines, want 6", len(lines))
+	if lines := strings.Split(plain(m), "\n"); len(lines) != 8 {
+		t.Errorf("view has %d lines, want 8", len(lines))
 	}
 }
 

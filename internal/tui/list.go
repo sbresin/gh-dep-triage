@@ -9,7 +9,7 @@ import (
 
 func (m Model) rows() []row { return buildRows(m.snap.Groups, m.sortMode, m.expanded) }
 
-func (m Model) listHeight() int { return max(1, m.height-3) }
+func (m Model) listHeight() int { return m.bodyHeight() }
 
 func (m *Model) fixScroll() {
 	n := len(m.rows())
@@ -207,15 +207,4 @@ func (m *Model) toggle(r row) {
 		m.selected[pr.Ref] = true
 		m.status = "Selected " + pr.Ref + " for Approve+Merge."
 	}
-}
-
-func (m Model) viewList() string {
-	rows := m.rows()
-	body := []string{}
-	for i := m.scroll; i < min(len(rows), m.scroll+m.listHeight()); i++ {
-		lead, box, text, badges := rowParts(rows[i], m.selected, m.expanded, m.badges)
-		body = append(body, rowStyle(rows[i], m.selected, i == m.cursor, m.badges).Render(layoutRow(lead, box, text, badges, m.width)))
-	}
-	title := fmt.Sprintf("dep-triage | sort %s | %d/%d selected | %s", m.sortMode, m.selectedCount(), len(m.snap.PRs()), m.deps.Who)
-	return m.frame(title, listKeys, body, m.status)
 }

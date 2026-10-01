@@ -43,8 +43,6 @@ const (
 	popupConfirm
 )
 
-const listKeys = "j/k move  s sort  enter fold  space select  o open  d desc  b blockers  g reload  c confirm  q quit"
-
 // Model is the Bubble Tea model for the TUI.
 type Model struct {
 	ctx  context.Context
@@ -70,6 +68,12 @@ type Model struct {
 
 	confirm confirmState
 
+	focus   pane
+	qcursor int
+	qscroll int
+	qfollow bool // the queue cursor follows the newest job
+	paused  bool
+
 	jobs    []executor.Job          // the queue's jobs, in submission order
 	badges  map[string]executor.Job // latest job per lower-cased ref
 	history []executor.Job          // finished jobs, from Finished events
@@ -84,7 +88,7 @@ func New(ctx context.Context, snap *model.Snapshot, deps Deps) Model {
 	m := Model{
 		ctx: ctx, deps: deps, snap: snap, width: 100, height: 30, screen: screenList,
 		sortMode: "package", expanded: map[string]bool{}, selected: map[string]bool{},
-		badges: map[string]executor.Job{},
+		badges: map[string]executor.Job{}, qfollow: true,
 		status: "Space toggles Approve+Merge for the focused row.",
 	}
 	if n := len(snap.Warnings); n > 0 {
@@ -111,6 +115,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.fixScroll()
+		m.fixQueueScroll()
 		m.pager.SetWidth(msg.Width)
 		m.pager.SetHeight(max(1, msg.Height-3))
 		return m, nil
@@ -143,7 +148,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		switch m.screen {
 		case screenList:
-			return m.updateList(msg)
+			return m.updateMain(msg)
 		case screenPager:
 			return m.updatePager(msg)
 		}
@@ -164,7 +169,7 @@ func (m Model) View() tea.View {
 	case m.screen == screenPager:
 		content = m.viewPager()
 	default:
-		content = m.viewList()
+		content = m.viewMain()
 		if m.popup == popupConfirm {
 			content = overlay(dim(content), m.viewConfirm(), m.width, m.height)
 		}
@@ -172,6 +177,21 @@ func (m Model) View() tea.View {
 	v := tea.NewView(content)
 	v.AltScreen = true
 	return v
+}
+
+func (m Model) updateMain(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if msg.String() == "tab" {
+		if m.focus == paneList {
+			m.focus = paneQueue
+		} else {
+			m.focus = paneList
+		}
+		return m, nil
+	}
+	if m.focus == paneQueue {
+		return m.updateQueue(msg.String())
+	}
+	return m.updateList(msg)
 }
 
 // frame lays out a full screen: title, subtitle, body lines padded to the

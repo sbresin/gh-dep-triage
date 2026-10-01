@@ -74,6 +74,10 @@ func (m *Model) syncJobs(reset bool) {
 	for _, j := range m.jobs {
 		m.badges[refKey(j.PR.Ref)] = j
 	}
+	if m.qfollow {
+		m.qcursor = len(m.jobs) - 1
+	}
+	m.fixQueueScroll()
 }
 
 func jobIcon(j executor.Job) string {

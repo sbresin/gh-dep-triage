@@ -22,9 +22,15 @@ var noPRMessage = map[string]string{
 	"b": "Blocker details work on PR rows only.",
 }
 
-// focusedPR is the PR under the cursor, or nil.
+// focusedPR is the PR under the cursor of the focused pane, or nil.
 func (m Model) focusedPR() *model.PR {
 	if m.screen != screenList {
+		return nil
+	}
+	if m.focus == paneQueue {
+		if j, ok := m.focusedJob(); ok {
+			return j.PR
+		}
 		return nil
 	}
 	rows := m.rows()
@@ -51,6 +57,9 @@ func (m Model) prAction(k string) (Model, tea.Cmd, bool) {
 	case "d":
 		return m.openPager("Description: "+pr.Ref, describe(pr, m.width)), nil, true
 	default:
+		if j, ok := m.focusedJob(); ok && m.focus == paneQueue {
+			return m.openPager("Job: "+pr.Ref, jobText(j)), nil, true
+		}
 		return m.openPager("Blockers: "+pr.Ref, blockerText(pr)), nil, true
 	}
 }
