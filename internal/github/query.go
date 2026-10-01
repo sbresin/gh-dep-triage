@@ -39,13 +39,13 @@ const repoFields = `nameWithOwner mergeCommitAllowed squashMergeAllowed rebaseMe
 
 func prFields(number int) string {
 	return fmt.Sprintf(`pullRequest(number: %[1]d) {
-      number title url body state isDraft createdAt updatedAt
-      headRefOid baseRefName mergeStateStatus mergeable reviewDecision
+      number id title url body state isDraft createdAt updatedAt
+      headRefOid baseRefName mergeStateStatus mergeable reviewDecision isMergeQueueEnabled
       author { __typename login }
       autoMergeRequest { enabledAt }
       reviews(author: $viewer, last: 20) { nodes { state submittedAt } }
       reviewRequests(first: 20) { nodes { requestedReviewer { __typename ... on User { login } ... on Team { combinedSlug } ... on Bot { login } } } }
-      commits(last: 1) { nodes { commit { statusCheckRollup { contexts(first: 100) { nodes {
+      commits(last: 1) { nodes { commit { statusCheckRollup { state contexts(first: 100) { pageInfo { hasNextPage } nodes {
         __typename
         ... on CheckRun { name status conclusion detailsUrl databaseId isRequired(pullRequestNumber: %[1]d) checkSuite { workflowRun { databaseId } } }
         ... on StatusContext { context state targetUrl isRequired(pullRequestNumber: %[1]d) }

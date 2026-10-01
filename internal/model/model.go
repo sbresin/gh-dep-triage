@@ -126,6 +126,7 @@ type PR struct {
 	Mergeable          string       `json:"mergeable"`
 	ReviewDecision     string       `json:"reviewDecision"`
 	AutoMerge          bool         `json:"autoMerge"`
+	MergeQueue         bool         `json:"mergeQueue"`
 	RequestedForReview bool         `json:"requestedForReview"`
 	ViewerApproved     bool         `json:"viewerApproved"`
 	RequestedReviewers []string     `json:"requestedReviewers"`
@@ -147,6 +148,7 @@ type PR struct {
 	ViewerReviews        []Review     `json:"-"`
 	CheckRuns            []Check      `json:"-"`
 	RepoSettings         RepoSettings `json:"-"`
+	ID                   string       `json:"-"`
 }
 
 func (p *PR) PRRef() PRRef { return PRRef{Repo: p.Repo, Number: p.Number} }
@@ -190,4 +192,46 @@ func (s *Snapshot) Find(ref PRRef) *PR {
 		}
 	}
 	return nil
+}
+
+const (
+	ActionApprove = "approve"
+	ActionMerge   = "merge"
+)
+
+const (
+	ResultPlanned = "planned"
+	ResultSuccess = "success"
+	ResultSkipped = "skipped"
+	ResultFailed  = "failed"
+	ResultDenied  = "denied"
+)
+
+const (
+	ReasonHeadChanged     = "head_changed"
+	ReasonNotEligible     = "not_eligible"
+	ReasonChecksFailing   = "checks_failing"
+	ReasonNotMergeable    = "not_mergeable"
+	ReasonAlreadyMerging  = "already_merging"
+	ReasonAlreadyApproved = "already_approved"
+	ReasonMergeQueue      = "merge_queue"
+	ReasonNoMergeMethod   = "no_merge_method"
+	ReasonRefetchFailed   = "refetch_failed"
+	ReasonMutationFailed  = "mutation_failed"
+	ReasonCancelled       = "cancelled"
+	ReasonNotBotPR        = "not_bot_pr"
+	ReasonRepoDenied      = "repo_denied"
+	ReasonRepoNotAllowed  = "repo_not_allowed"
+	ReasonMajorNeedsFlag  = "major_requires_allow_major"
+)
+
+// Result is the outcome of one planned (action, PR) pair.
+type Result struct {
+	Action  string   `json:"action"`
+	Ref     string   `json:"ref"`
+	Status  string   `json:"status"`
+	Reason  string   `json:"reason,omitempty"`
+	Message string   `json:"message,omitempty"`
+	Steps   []string `json:"steps"`
+	HeadOid string   `json:"headOid,omitempty"`
 }

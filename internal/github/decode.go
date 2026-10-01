@@ -55,22 +55,24 @@ type rawRepo struct {
 }
 
 type rawPR struct {
-	Number           int
-	Title            string
-	URL              string
-	Body             string
-	State            string
-	IsDraft          bool
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
-	HeadRefOid       string
-	BaseRefName      string
-	MergeStateStatus string
-	Mergeable        string
-	ReviewDecision   string
-	Author           *rawActor
-	AutoMergeRequest *struct{ EnabledAt time.Time }
-	Reviews          struct {
+	Number              int
+	ID                  string
+	Title               string
+	URL                 string
+	Body                string
+	State               string
+	IsDraft             bool
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	HeadRefOid          string
+	BaseRefName         string
+	MergeStateStatus    string
+	Mergeable           string
+	ReviewDecision      string
+	IsMergeQueueEnabled bool
+	Author              *rawActor
+	AutoMergeRequest    *struct{ EnabledAt time.Time }
+	Reviews             struct {
 		Nodes []struct {
 			State       string
 			SubmittedAt *time.Time
@@ -83,7 +85,11 @@ type rawPR struct {
 		Nodes []struct {
 			Commit struct {
 				StatusCheckRollup *struct {
-					Contexts struct{ Nodes []rawContext }
+					State    string
+					Contexts struct {
+						PageInfo struct{ HasNextPage bool }
+						Nodes    []rawContext
+					}
 				}
 			}
 		}
@@ -120,14 +126,20 @@ func decodePRBatch(data map[string]*rawRepo, refs []model.PRRef, errByAlias map[
 			warnings = append(warnings, model.Problem{Code: "not_found", Ref: ref.String(), Message: "pull request not found or not accessible"})
 			continue
 		}
-		prs = append(prs, toPR(ref, repo))
+		pr, truncated := toPR(ref, repo)
+		prs = append(prs, pr)
+		if truncated {
+			warnings = append(warnings, model.Problem{Code: "checks_truncated", Ref: ref.String(),
+				Message: "more than 100 status checks; only the first 100 were inspected"})
+		}
 	}
 	return prs, warnings
 }
 
-func toPR(ref model.PRRef, repo *rawRepo) *model.PR {
+func toPR(ref model.PRRef, repo *rawRepo) (*model.PR, bool) {
 	raw := repo.PullRequest
 	pr := &model.PR{
+		ID: raw.ID, MergeQueue: raw.IsMergeQueueEnabled,
 		Repo: ref.Repo, Number: ref.Number, Ref: ref.String(),
 		Title: raw.Title, URL: raw.URL, Body: raw.Body, State: raw.State, IsDraft: raw.IsDraft,
 		CreatedAt: raw.CreatedAt, UpdatedAt: raw.UpdatedAt,
@@ -167,15 +179,25 @@ func toPR(ref model.PRRef, repo *rawRepo) *model.PR {
 			pr.RequestedReviewers = append(pr.RequestedReviewers, name)
 		}
 	}
+	truncated := false
 	for _, c := range raw.Commits.Nodes {
-		if c.Commit.StatusCheckRollup == nil {
+		rollup := c.Commit.StatusCheckRollup
+		if rollup == nil {
 			continue
 		}
-		for _, ctx := range c.Commit.StatusCheckRollup.Contexts.Nodes {
+		for _, ctx := range rollup.Contexts.Nodes {
 			pr.CheckRuns = append(pr.CheckRuns, toCheck(ctx))
 		}
+		if rollup.Contexts.PageInfo.HasNextPage {
+			truncated = true
+			if rollup.State == "FAILURE" || rollup.State == "ERROR" {
+				pr.CheckRuns = append(pr.CheckRuns, model.Check{
+					Name: "more than 100 checks (rollup " + rollup.State + ")", Kind: model.CheckKindStatus, Conclusion: rollup.State,
+				})
+			}
+		}
 	}
-	return pr
+	return pr, truncated
 }
 
 func toCheck(c rawContext) model.Check {

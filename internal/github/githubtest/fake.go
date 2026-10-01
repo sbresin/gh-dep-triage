@@ -43,6 +43,8 @@ func NewPR(repo string, n int, title string) *model.PR {
 		State: "OPEN", CreatedAt: created, UpdatedAt: created,
 		HeadOid: fmt.Sprintf("sha%d", n), BaseRef: "main",
 		MergeStateStatus: "BLOCKED", Mergeable: "MERGEABLE", ReviewDecision: "REVIEW_REQUIRED",
+		ID:           "PR_" + fmt.Sprintf("%s#%d", repo, n),
+		RepoSettings: model.RepoSettings{SquashMergeAllowed: true, AutoMergeAllowed: true, ViewerDefaultMergeMethod: "SQUASH"},
 	}
 }
 

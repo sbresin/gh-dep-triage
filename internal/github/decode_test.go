@@ -90,3 +90,43 @@ func TestSearchHits(t *testing.T) {
 		t.Errorf("(-want +got):\n%s", diff)
 	}
 }
+
+func TestDecodeIDMergeQueueAndTruncation(t *testing.T) {
+	raw := `{
+	  "pr0": {"nameWithOwner": "acme/api", "pullRequest": {
+	    "number": 1, "id": "PR_kwDO1", "title": "t", "state": "OPEN", "isMergeQueueEnabled": true,
+	    "commits": {"nodes": [{"commit": {"statusCheckRollup": {"state": "FAILURE",
+	      "contexts": {"pageInfo": {"hasNextPage": true}, "nodes": [
+	        {"__typename": "CheckRun", "name": "a", "status": "COMPLETED", "conclusion": "SUCCESS"}]}}}}]}}},
+	  "pr1": {"nameWithOwner": "acme/api", "pullRequest": {
+	    "number": 2, "id": "PR_kwDO2", "title": "t", "state": "OPEN",
+	    "commits": {"nodes": [{"commit": {"statusCheckRollup": {"state": "SUCCESS",
+	      "contexts": {"pageInfo": {"hasNextPage": true}, "nodes": []}}}}]}}}
+	}`
+	data := map[string]*rawRepo{}
+	if err := json.Unmarshal([]byte(raw), &data); err != nil {
+		t.Fatal(err)
+	}
+	refs := []model.PRRef{{Repo: "acme/api", Number: 1}, {Repo: "acme/api", Number: 2}}
+	prs, warnings := decodePRBatch(data, refs, nil)
+	if len(prs) != 2 {
+		t.Fatalf("got %d PRs", len(prs))
+	}
+	if prs[0].ID != "PR_kwDO1" || !prs[0].MergeQueue || prs[1].MergeQueue {
+		t.Errorf("id/mergeQueue: %+v / %+v", prs[0], prs[1])
+	}
+	wantSynthetic := model.Check{Name: "more than 100 checks (rollup FAILURE)", Kind: model.CheckKindStatus, Conclusion: "FAILURE"}
+	if n := len(prs[0].CheckRuns); n != 2 || prs[0].CheckRuns[1] != wantSynthetic {
+		t.Errorf("pr0 checks = %+v", prs[0].CheckRuns)
+	}
+	if len(prs[1].CheckRuns) != 0 {
+		t.Errorf("green truncated rollup must not add a failing check: %+v", prs[1].CheckRuns)
+	}
+	wantWarnings := []model.Problem{
+		{Code: "checks_truncated", Ref: "acme/api#1", Message: "more than 100 status checks; only the first 100 were inspected"},
+		{Code: "checks_truncated", Ref: "acme/api#2", Message: "more than 100 status checks; only the first 100 were inspected"},
+	}
+	if diff := cmp.Diff(wantWarnings, warnings); diff != "" {
+		t.Errorf("warnings (-want +got):\n%s", diff)
+	}
+}

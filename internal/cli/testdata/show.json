@@ -20,6 +20,7 @@
       "mergeable": "MERGEABLE",
       "reviewDecision": "REVIEW_REQUIRED",
       "autoMerge": false,
+      "mergeQueue": false,
       "requestedForReview": true,
       "viewerApproved": false,
       "requestedReviewers": [],

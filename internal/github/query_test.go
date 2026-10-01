@@ -46,3 +46,16 @@ func TestBuildPRBatchQuery(t *testing.T) {
 		t.Errorf("vars = %v", vars)
 	}
 }
+
+func TestBuildPRBatchQueryHasMutationFields(t *testing.T) {
+	q, _ := buildPRBatchQuery([]model.PRRef{{Repo: "acme/api", Number: 12}})
+	for _, want := range []string{
+		"number id title",
+		"isMergeQueueEnabled",
+		"statusCheckRollup { state contexts(first: 100) { pageInfo { hasNextPage } nodes {",
+	} {
+		if !strings.Contains(q, want) {
+			t.Errorf("query missing %q", want)
+		}
+	}
+}
