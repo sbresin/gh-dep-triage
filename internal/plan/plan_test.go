@@ -61,6 +61,8 @@ func TestParseRejects(t *testing.T) {
 		"unknown action": `[{"action":"rebase","ref":"acme/api#1"}]`,
 		"missing ref":    `[{"action":"merge"}]`,
 		"unknown field":  `[{"action":"merge","ref":"acme/api#1","sha":"x"}]`,
+		"trailing data":  `[{"action":"merge","ref":"acme/api#1"}] garbage`,
+		"second array":   `[{"action":"merge","ref":"acme/api#1"}][]`,
 	} {
 		_, err := Parse(strings.NewReader(body), actions)
 		var pe *Error
@@ -86,8 +88,46 @@ func TestResolveDedupes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tasks) != 2 {
-		t.Errorf("got %d tasks: %+v", len(tasks), views(tasks))
+	want := []view{{"merge", "acme/api#1", "", ""}, {"merge", "acme/web#2", "", ""}}
+	if diff := cmp.Diff(want, views(tasks)); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
+func TestResolveDedupeHonoursPinnedHead(t *testing.T) {
+	stale := []view{{"merge", "acme/api#1", model.ResultFailed, model.ReasonHeadChanged}, {"merge", "acme/web#2", "", ""}}
+	for name, tc := range map[string]struct {
+		items []Item
+		want  []view
+	}{
+		"group then pinned stale": {
+			[]Item{{Action: "merge", Ref: "group:lodash@4.17.21"}, {Action: "merge", Ref: "acme/api#1", HeadOid: "old"}},
+			stale,
+		},
+		"pinned stale then group": {
+			[]Item{{Action: "merge", Ref: "acme/api#1", HeadOid: "old"}, {Action: "merge", Ref: "group:lodash@4.17.21"}},
+			stale,
+		},
+		"pinned matching and group": {
+			[]Item{{Action: "merge", Ref: "group:lodash@4.17.21"}, {Action: "merge", Ref: "acme/api#1", HeadOid: "h1"}},
+			[]view{{"merge", "acme/api#1", "", ""}, {"merge", "acme/web#2", "", ""}},
+		},
+		"case-insensitive duplicate": {
+			[]Item{{Action: "merge", Ref: "ACME/api#1"}, {Action: "merge", Ref: "acme/api#1", HeadOid: "old"}},
+			[]view{{"merge", "acme/api#1", model.ResultFailed, model.ReasonHeadChanged}},
+		},
+		"duplicate missing ref": {
+			Items("merge", []string{"acme/api#99", "ACME/api#99"}),
+			[]view{{"merge", "acme/api#99", model.ResultFailed, model.ReasonNotEligible}},
+		},
+	} {
+		tasks, err := Resolve(snapshot(), tc.items)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if diff := cmp.Diff(tc.want, views(tasks)); diff != "" {
+			t.Errorf("%s (-want +got):\n%s", name, diff)
+		}
 	}
 }
 

@@ -50,6 +50,9 @@ func Parse(r io.Reader, actions map[string]bool) ([]Item, error) {
 	if err := dec.Decode(&items); err != nil {
 		return nil, errorf("plan must be a JSON array of {action, ref, args?, headOid?}: %v", err)
 	}
+	if _, err := dec.Token(); err != io.EOF {
+		return nil, errorf("plan must be a single JSON array: unexpected content after it")
+	}
 	if len(items) == 0 {
 		return nil, errorf("plan has no items")
 	}
@@ -70,10 +73,12 @@ func preResult(action, ref, status, reason, message string) Task {
 }
 
 // Resolve expands refs against snap, deduplicates (action, PR) pairs and
-// records resolution-time failures as Task results.
+// records resolution-time failures as Task results. A duplicate keeps the
+// position of its first occurrence, but a stale headOid on any occurrence
+// turns the pair into a head_changed failure.
 func Resolve(snap *model.Snapshot, items []Item) ([]Task, error) {
 	tasks := []Task{}
-	seen := map[string]bool{}
+	seen := map[string]int{}
 	for _, it := range items {
 		ref, err := triage.ParseRef(strings.TrimSpace(it.Ref))
 		if err != nil {
@@ -93,6 +98,11 @@ func Resolve(snap *model.Snapshot, items []Item) ([]Task, error) {
 		default:
 			pr := snap.Find(ref.PR)
 			if pr == nil {
+				key := it.Action + " " + strings.ToLower(ref.PR.String())
+				if _, dup := seen[key]; dup {
+					continue
+				}
+				seen[key] = len(tasks)
 				tasks = append(tasks, preResult(it.Action, ref.PR.String(), model.ResultFailed, model.ReasonNotEligible,
 					"not in your triage snapshot (no review requested and not approved by you)"))
 				continue
@@ -101,16 +111,20 @@ func Resolve(snap *model.Snapshot, items []Item) ([]Task, error) {
 		}
 		for _, pr := range prs {
 			key := it.Action + " " + strings.ToLower(pr.Ref)
-			if seen[key] {
+			task := Task{Action: it.Action, PR: pr}
+			stale := it.HeadOid != "" && it.HeadOid != pr.HeadOid
+			if stale {
+				task = preResult(it.Action, pr.Ref, model.ResultFailed, model.ReasonHeadChanged,
+					fmt.Sprintf("head moved from %s to %s since the plan was made", it.HeadOid, pr.HeadOid))
+			}
+			if i, dup := seen[key]; dup {
+				if stale && tasks[i].Result == nil {
+					tasks[i] = task
+				}
 				continue
 			}
-			seen[key] = true
-			if it.HeadOid != "" && it.HeadOid != pr.HeadOid {
-				tasks = append(tasks, preResult(it.Action, pr.Ref, model.ResultFailed, model.ReasonHeadChanged,
-					fmt.Sprintf("head moved from %s to %s since the plan was made", it.HeadOid, pr.HeadOid)))
-				continue
-			}
-			tasks = append(tasks, Task{Action: it.Action, PR: pr})
+			seen[key] = len(tasks)
+			tasks = append(tasks, task)
 		}
 	}
 	return tasks, nil
