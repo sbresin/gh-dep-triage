@@ -89,7 +89,7 @@ func (m Model) focusedJob() (executor.Job, bool) {
 func (m Model) updateQueue(k string) (tea.Model, tea.Cmd) {
 	switch k {
 	case "q":
-		return m, tea.Quit
+		return m.requestQuit()
 	case "esc":
 		m.focus = paneList
 		return m, nil

@@ -41,6 +41,7 @@ type popupKind int
 const (
 	popupNone popupKind = iota
 	popupConfirm
+	popupQuit
 )
 
 // Model is the Bubble Tea model for the TUI.
@@ -73,6 +74,11 @@ type Model struct {
 	qscroll int
 	qfollow bool // the queue cursor follows the newest job
 	paused  bool
+
+	quitWhenIdle bool // w in the quit popup
+	cancelling   bool // Close(true) requested; quit on the Closed event
+	presses      int  // ctrl+c presses and signals
+	forced       bool // quit while jobs were still running
 
 	jobs    []executor.Job          // the queue's jobs, in submission order
 	badges  map[string]executor.Job // latest job per lower-cased ref
@@ -131,20 +137,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.onQueue(msg)
 	case reloadedMsg:
 		return m.onReloaded(msg)
+	case signalMsg:
+		return m.interrupt(true)
+	case ctxDoneMsg:
+		return m.interrupt(false)
 	case tea.KeyPressMsg:
 		k := msg.String()
 		if k == "ctrl+c" {
-			m.interrupted = true
-			return m, tea.Quit
+			return m.interrupt(true)
 		}
 		if m.tooSmall() {
-			if k == "q" || k == "esc" {
+			if q, r := m.pending(); (k == "q" || k == "esc") && q+r == 0 {
 				return m, tea.Quit
 			}
 			return m, nil
 		}
-		if m.popup == popupConfirm {
+		switch m.popup {
+		case popupConfirm:
 			return m.updateConfirm(k)
+		case popupQuit:
+			return m.updateQuit(k)
 		}
 		switch m.screen {
 		case screenList:
@@ -173,6 +185,9 @@ func (m Model) View() tea.View {
 		if m.popup == popupConfirm {
 			content = overlay(dim(content), m.viewConfirm(), m.width, m.height)
 		}
+		if m.popup == popupQuit {
+			content = overlay(dim(content), m.viewQuit(), m.width, m.height)
+		}
 	}
 	v := tea.NewView(content)
 	v.AltScreen = true
@@ -180,6 +195,11 @@ func (m Model) View() tea.View {
 }
 
 func (m Model) updateMain(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if k := msg.String(); m.quitWhenIdle && (k == "w" || k == "esc") {
+		m.quitWhenIdle = false
+		m.status = "Staying; the queue keeps running."
+		return m, nil
+	}
 	if msg.String() == "tab" {
 		if m.focus == paneList {
 			m.focus = paneQueue

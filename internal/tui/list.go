@@ -52,7 +52,7 @@ func (m Model) selectedCount() int {
 func (m Model) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	k := msg.String()
 	if k == "q" || k == "esc" {
-		return m, tea.Quit
+		return m.requestQuit()
 	}
 	if k == "g" {
 		return m.startReload()

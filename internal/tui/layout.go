@@ -69,6 +69,12 @@ func (m Model) header() string {
 	if m.paused {
 		parts = append(parts, "paused")
 	}
+	switch {
+	case m.cancelling:
+		parts = append(parts, "cancelling…")
+	case m.quitWhenIdle:
+		parts = append(parts, "quitting when idle")
+	}
 	return strings.Join(append(parts, m.deps.Who), " | ")
 }
 

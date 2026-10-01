@@ -51,13 +51,22 @@ func markable(pr *model.PR, jobs map[string]executor.Job) bool {
 }
 
 func (m Model) onQueue(msg queueMsg) (tea.Model, tea.Cmd) {
-	if msg.closed {
-		return m, nil
+	if msg.closed || msg.ev.Kind == executor.EventClosed {
+		m.syncJobs(false)
+		if m.cancelling {
+			return m, tea.Quit
+		}
+		if msg.closed {
+			return m, nil
+		}
 	}
 	if msg.ev.Kind == executor.EventFinished {
 		m.history = append(m.history, msg.ev.Job)
 	}
 	m.syncJobs(false)
+	if q, r := m.pending(); m.quitWhenIdle && q+r == 0 {
+		return m, tea.Quit
+	}
 	return m, listen(m.deps.Queue.Events())
 }
 
@@ -171,6 +180,16 @@ func (m Model) Summary() []string {
 	lines := []string{}
 	for _, j := range jobs {
 		lines = append(lines, summaryLine(j.Result.Status, j.PR.Ref, resultText(j.Result)))
+	}
+	if m.forced {
+		for _, j := range live {
+			switch j.State {
+			case executor.JobRunning:
+				lines = append(lines, summaryLine("running (abandoned)", j.PR.Ref, j.Step))
+			case executor.JobQueued:
+				lines = append(lines, summaryLine("cancelled", j.PR.Ref, "not started"))
+			}
+		}
 	}
 	return lines
 }

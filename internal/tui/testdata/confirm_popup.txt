@@ -1,0 +1,12 @@
+dep-triage | sort package | 2 marked | user octocat
+┌─ PRs ─────╭──────────────────────────────────────────────────────────────────────────╮───────────┐
+│  󰡖 acme/ap│ Approve + Merge 2 PRs?                                                   │rk PRs a...│
+│  󰡖 acme/ap│                                                                          │           │
+│▸ 󰄵 lodash │   acme/api  #1  lodash -> 4.17.21 [patch]                                │           │
+│           │   acme/web  #2  lodash -> 4.17.21 [patch]                                │           │
+│           │                                                                          │           │
+│           │ Pinned to the commits shown. Each PR is re-checked right before it runs. │           │
+│           │                                                                          │           │
+└───────────│ y queue  n/esc back                                                      │───────────┘
+tab queue  s╰──────────────────────────────────────────────────────────────────────────╯ad  q quit
+Selected 2 PRs in the group.
