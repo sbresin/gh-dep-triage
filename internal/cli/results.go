@@ -48,13 +48,22 @@ func exitCodeFor(rs []model.Result, dryRun bool) int {
 	switch {
 	case c.Total > 0 && c.Denied == c.Total:
 		return ExitDenied
-	case c.Failed > 0:
+	case c.Failed > 0 || anyCancelled(rs):
 		return ExitPartial
 	case c.Denied > 0 && !dryRun:
 		return ExitPartial
 	default:
 		return ExitOK
 	}
+}
+
+func anyCancelled(rs []model.Result) bool {
+	for _, r := range rs {
+		if r.Reason == model.ReasonCancelled {
+			return true
+		}
+	}
+	return false
 }
 
 func resultDetail(r model.Result) string {

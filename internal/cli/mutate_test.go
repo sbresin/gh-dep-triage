@@ -152,6 +152,9 @@ func TestExitCodeFor(t *testing.T) {
 		{r("failed"), false, ExitPartial},
 		{r("denied"), false, ExitDenied},
 		{r(), false, ExitOK},
+		{[]model.Result{{Status: "success"}, {Status: "skipped", Reason: "cancelled"}}, false, ExitPartial},
+		{[]model.Result{{Status: "skipped", Reason: "cancelled"}}, false, ExitPartial},
+		{[]model.Result{{Status: "skipped", Reason: "already_approved"}}, false, ExitOK},
 	}
 	for _, tt := range tests {
 		if got := exitCodeFor(tt.rs, tt.dryRun); got != tt.want {
