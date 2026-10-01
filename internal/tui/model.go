@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/sbresin/gh-dep-triage/internal/model"
@@ -39,7 +40,7 @@ const (
 	screenResults
 )
 
-const listKeys = "j/k move  s sort  Enter expand  Space select  o open  d describe  b blockers  g reload  c confirm  q quit"
+const listKeys = "j/k move  s sort  enter fold  space select  o open  d desc  b blockers  g reload  c confirm  q quit"
 
 // Model is the Bubble Tea model for all TUI screens.
 type Model struct {
@@ -57,6 +58,10 @@ type Model struct {
 	selected map[string]bool
 	cursor   int
 	scroll   int
+
+	pager       viewport.Model
+	pagerTitle  string
+	pagerReturn screen
 }
 
 func New(ctx context.Context, snap *model.Snapshot, deps Deps) Model {
@@ -84,6 +89,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.fixScroll()
+		m.pager.SetWidth(msg.Width)
+		m.pager.SetHeight(max(1, msg.Height-3))
+		return m, nil
+	case browsedMsg:
+		if msg.err != nil {
+			m.status = fmt.Sprintf("Browser open failed for %s: %v", msg.ref, msg.err)
+		} else {
+			m.status = "Opened " + msg.ref + " in the browser."
+		}
 		return m, nil
 	case tea.KeyPressMsg:
 		if msg.String() == "ctrl+c" && m.screen != screenProgress {
@@ -99,7 +113,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch m.screen {
 		case screenList:
 			return m.updateList(msg)
+		case screenPager:
+			return m.updatePager(msg)
 		}
+	}
+	if m.screen == screenPager {
+		var cmd tea.Cmd
+		m.pager, cmd = m.pager.Update(msg)
+		return m, cmd
 	}
 	return m, nil
 }
@@ -112,6 +133,8 @@ func (m Model) View() tea.View {
 		switch m.screen {
 		case screenList:
 			content = m.viewList()
+		case screenPager:
+			content = m.viewPager()
 		}
 	}
 	v := tea.NewView(content)

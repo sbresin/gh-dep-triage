@@ -48,6 +48,9 @@ func (m Model) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if len(rows) == 0 {
 		return m, nil
 	}
+	if nm, cmd, handled := m.prAction(k); handled {
+		return nm, cmd
+	}
 	cur := rows[m.cursor]
 	switch k {
 	case "j", "down":
