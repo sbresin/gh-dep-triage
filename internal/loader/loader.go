@@ -170,15 +170,9 @@ dispatch:
 		go func() {
 			defer wg.Done()
 			defer func() { <-sem }()
-			got, warns, err := c.FetchPRs(ctx, viewer, batch)
+			got, warns := fetchBatch(ctx, c, viewer, batch)
 			mu.Lock()
 			defer mu.Unlock()
-			if err != nil {
-				for _, r := range batch {
-					warnings = append(warnings, model.Problem{Code: "fetch_failed", Ref: r.String(), Message: err.Error()})
-				}
-				return
-			}
 			prs = append(prs, got...)
 			warnings = append(warnings, warns...)
 		}()
@@ -186,4 +180,38 @@ dispatch:
 	wg.Wait()
 	sort.Slice(warnings, func(i, j int) bool { return warnings[i].Ref < warnings[j].Ref })
 	return prs, warnings
+}
+
+// fetchBatch fetches one batch. If the whole request fails (e.g. a GitHub
+// 504 timeout), each PR is retried once on its own, since a single PR is far
+// cheaper for GitHub to resolve. Only PRs that fail again become warnings.
+func fetchBatch(ctx context.Context, c github.Client, viewer string, batch []model.PRRef) ([]*model.PR, []model.Problem) {
+	got, warns, err := c.FetchPRs(ctx, viewer, batch)
+	if err == nil {
+		return got, warns
+	}
+	if len(batch) == 1 || ctx.Err() != nil {
+		return nil, fetchFailed(batch, err)
+	}
+	var prs []*model.PR
+	warnings := []model.Problem{}
+	for _, r := range batch {
+		one := []model.PRRef{r}
+		got, warns, err := c.FetchPRs(ctx, viewer, one)
+		if err != nil {
+			warnings = append(warnings, fetchFailed(one, err)...)
+			continue
+		}
+		prs = append(prs, got...)
+		warnings = append(warnings, warns...)
+	}
+	return prs, warnings
+}
+
+func fetchFailed(refs []model.PRRef, err error) []model.Problem {
+	out := make([]model.Problem, 0, len(refs))
+	for _, r := range refs {
+		out = append(out, model.Problem{Code: "fetch_failed", Ref: r.String(), Message: err.Error()})
+	}
+	return out
 }

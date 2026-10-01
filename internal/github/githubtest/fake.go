@@ -20,6 +20,7 @@ type Fake struct {
 	Files       map[string][]model.ChangedFile
 	Logs        map[int64]string
 	FailBatch   map[string]error // a batch containing this ref fails as a whole
+	FailOnce    map[string]error // like FailBatch, but only for the first batch containing this ref
 
 	mu      sync.Mutex
 	Queries []string
@@ -30,7 +31,7 @@ var _ github.Client = (*Fake)(nil)
 
 func NewFake(viewer string) *Fake {
 	return &Fake{ViewerLogin: viewer, PRs: map[string]*model.PR{}, Files: map[string][]model.ChangedFile{},
-		Logs: map[int64]string{}, FailBatch: map[string]error{}}
+		Logs: map[int64]string{}, FailBatch: map[string]error{}, FailOnce: map[string]error{}}
 }
 
 // NewPR returns a raw (not enriched) open Dependabot PR created 2026-09-25.
@@ -83,6 +84,13 @@ func (f *Fake) SearchPRs(_ context.Context, query string, limit int) ([]github.S
 func (f *Fake) FetchPRs(_ context.Context, _ string, refs []model.PRRef) ([]*model.PR, []model.Problem, error) {
 	f.mu.Lock()
 	f.Batches = append(f.Batches, append([]model.PRRef(nil), refs...))
+	for _, r := range refs {
+		if err := f.FailOnce[r.String()]; err != nil {
+			delete(f.FailOnce, r.String())
+			f.mu.Unlock()
+			return nil, nil, err
+		}
+	}
 	f.mu.Unlock()
 	for _, r := range refs {
 		if err := f.FailBatch[r.String()]; err != nil {

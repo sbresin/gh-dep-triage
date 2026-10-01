@@ -110,6 +110,31 @@ func TestDefaultWorkers(t *testing.T) {
 	}
 }
 
+func TestLoadRetriesFailedBatchPerPR(t *testing.T) {
+	f := githubtest.NewFake("octocat")
+	for i := 1; i <= 8; i++ {
+		f.Add(githubtest.NewPR("acme/api", i, fmt.Sprintf("Bump pkg%d from 1.0.0 to 1.0.1", i)), true, false)
+	}
+	f.FailOnce["acme/api#3"] = errors.New("HTTP 504: We couldn't respond to your request in time")
+
+	snap, err := Load(context.Background(), f, opts())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snap.PRs()) != 8 || len(snap.Warnings) != 0 {
+		t.Errorf("loaded %d PRs, warnings %+v; want 8 and none", len(snap.PRs()), snap.Warnings)
+	}
+	singles := 0
+	for _, b := range f.Batches {
+		if len(b) == 1 {
+			singles++
+		}
+	}
+	if singles != 4 {
+		t.Errorf("single-PR retries = %d, want 4 (one per PR of the failed batch)", singles)
+	}
+}
+
 func TestLoadBatchFailureBecomesWarnings(t *testing.T) {
 	f := githubtest.NewFake("octocat")
 	for i := 1; i <= 30; i++ {
@@ -122,15 +147,15 @@ func TestLoadBatchFailureBecomesWarnings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Batches of 4: #30 shares the last batch with #29, so both fail.
-	if len(snap.PRs()) != 27 {
-		t.Errorf("loaded %d PRs, want 27", len(snap.PRs()))
+	// #30's batch fails; the per-PR retry recovers #29 but #30 keeps failing.
+	if len(snap.PRs()) != 28 {
+		t.Errorf("loaded %d PRs, want 28", len(snap.PRs()))
 	}
 	codes := map[string]int{}
 	for _, w := range snap.Warnings {
 		codes[w.Code]++
 	}
-	if codes["fetch_failed"] != 2 || codes["not_found"] != 1 {
+	if codes["fetch_failed"] != 1 || codes["not_found"] != 1 {
 		t.Errorf("warnings = %+v", snap.Warnings)
 	}
 }
