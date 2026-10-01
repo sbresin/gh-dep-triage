@@ -116,9 +116,11 @@ func (m *Model) finish(line string) {
 func (m Model) onRefreshed(msg refreshedMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case m.runCtx.Err() != nil:
+		m.failAll(model.ResultSkipped, model.ReasonCancelled, "cancelled before any change was made")
 		m.finish("Cancelled before any change was made.")
 		return m, nil
 	case msg.err != nil:
+		m.failAll(model.ResultFailed, model.ReasonRefetchFailed, msg.err.Error())
 		m.finish("Refresh failed: " + msg.err.Error())
 		return m, nil
 	}
@@ -128,6 +130,7 @@ func (m Model) onRefreshed(msg refreshedMsg) (tea.Model, tea.Cmd) {
 	}
 	tasks, err := plan.Resolve(msg.snap, items)
 	if err != nil {
+		m.failAll(model.ResultFailed, model.ReasonRefetchFailed, err.Error())
 		m.finish("Could not resolve the selection: " + err.Error())
 		return m, nil
 	}
@@ -157,6 +160,15 @@ func (m Model) onRefreshed(msg refreshedMsg) (tea.Model, tea.Cmd) {
 			ch <- execDoneMsg{}
 		}()
 		return <-ch
+	}
+}
+
+// failAll records one result per confirmed PR when the run ends before
+// anything executed.
+func (m *Model) failAll(status, reason, message string) {
+	for _, pr := range m.confirmPRs {
+		m.addResult(model.Result{Action: model.ActionMerge, Ref: pr.Ref, Status: status, Reason: reason,
+			Message: message, Steps: []string{}, HeadOid: pr.HeadOid})
 	}
 }
 

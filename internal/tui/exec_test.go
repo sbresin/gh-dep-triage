@@ -179,6 +179,43 @@ func TestRefreshFailure(t *testing.T) {
 	}
 }
 
+func TestRefreshFailureRecordsResults(t *testing.T) {
+	f := &fakeRun{loadErr: errors.New("HTTP 502")}
+	m := drive(t, selectLodash(newTest(fixture(), f.deps())), key("enter"))
+	if diff := cmp.Diff([]string{"acme/api#1 failed refetch_failed", "acme/web#2 failed refetch_failed"}, resultSummary(m.results)); diff != "" {
+		t.Fatalf("(-want +got):\n%s", diff)
+	}
+	if m.results[0].Message != "HTTP 502" || m.results[0].HeadOid != "sha1" {
+		t.Errorf("result = %+v", m.results[0])
+	}
+	m, _ = press(m, "x")
+	if got := plain(m); !strings.Contains(got, "Failures (2)") || !strings.Contains(got, "acme/api#1  refetch_failed: HTTP 502") {
+		t.Errorf("results:\n%s", got)
+	}
+}
+
+func TestCtrlCDuringRefresh(t *testing.T) {
+	f := &fakeRun{fresh: fixture()}
+	m := selectLodash(newTest(fixture(), f.deps()))
+	nm, loadCmd := m.Update(key("enter"))
+	m = nm.(Model)
+	m, cmd := press(m, "ctrl+c")
+	if isQuit(cmd) || !m.cancelling || m.runCtx.Err() == nil {
+		t.Fatalf("ctrl+c while refreshing cancels: cancelling=%v", m.cancelling)
+	}
+	m = drive(t, m, loadCmd())
+	if m.phase != phaseDone || len(f.executed) != 0 {
+		t.Fatalf("phase=%d executed=%v", m.phase, f.executed)
+	}
+	if diff := cmp.Diff([]string{"acme/api#1 skipped cancelled", "acme/web#2 skipped cancelled"}, resultSummary(m.results)); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+	m, _ = press(m, "x")
+	if got := plain(m); !strings.Contains(got, "Skipped (2)") || !strings.Contains(got, "cancelled before any change was made") {
+		t.Errorf("results:\n%s", got)
+	}
+}
+
 func TestCtrlCDuringExecution(t *testing.T) {
 	started, release := make(chan struct{}), make(chan struct{})
 	f := &fakeRun{fresh: fixture()}
