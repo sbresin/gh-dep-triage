@@ -6,6 +6,7 @@ require (
 	github.com/cli/go-gh/v2 v2.16.1
 	github.com/google/go-cmp v0.7.0
 	github.com/spf13/cobra v1.10.2
+	go.yaml.in/yaml/v3 v3.0.5
 )
 
 require (
