@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"io"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -25,7 +24,7 @@ func (a *app) applyCmd() *cobra.Command {
 			if file == "" {
 				return a.emit(out, &usageError{msg: "--plan <file|-> is required"})
 			}
-			var r io.Reader = a.stdin
+			r := a.stdin
 			if file != "-" {
 				f, err := os.Open(file)
 				if err != nil {

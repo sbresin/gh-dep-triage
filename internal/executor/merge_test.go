@@ -89,7 +89,7 @@ type pollFake struct {
 }
 
 func (p *pollFake) FetchPRs(ctx context.Context, viewer string, refs []model.PRRef) ([]*model.PR, []model.Problem, error) {
-	p.onFetch(p.Fake.PRs[refs[0].String()])
+	p.onFetch(p.PRs[refs[0].String()])
 	return p.Fake.FetchPRs(ctx, viewer, refs)
 }
 
