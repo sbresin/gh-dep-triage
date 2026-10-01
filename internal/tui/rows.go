@@ -234,7 +234,7 @@ func layoutRow(lead, box, body string, badges []string, width int) string {
 	left := lead + " " + box + " "
 	right := strings.Join(badges, "  ")
 	avail := max(1, width-lipgloss.Width(left)-lipgloss.Width(right)-1)
-	body = ansi.Truncate(safe.Line(body), avail, "...")
+	body = ansi.Truncate(safe.Inline(body), avail, "...")
 	pad := max(1, width-lipgloss.Width(left)-lipgloss.Width(body)-lipgloss.Width(right))
 	return ansi.Truncate(left+body+strings.Repeat(" ", pad)+right, width, "")
 }

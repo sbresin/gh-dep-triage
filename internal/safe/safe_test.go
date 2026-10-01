@@ -32,3 +32,17 @@ func TestLine(t *testing.T) {
 		}
 	}
 }
+
+func TestInline(t *testing.T) {
+	tests := []struct{ in, want string }{
+		{"a  b\nc\td", "a  b c d"},
+		{"\x1b[31mx", "[31mx"},
+		{"cr\r\nlf", "cr  lf"},
+		{"", ""},
+	}
+	for _, tt := range tests {
+		if got := Inline(tt.in); got != tt.want {
+			t.Errorf("Inline(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}

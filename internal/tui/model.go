@@ -131,4 +131,4 @@ func (m Model) frame(title, subtitle string, body []string, status string) strin
 	return strings.Join(append(lines, styleDim.Render(clip(status, m.width))), "\n")
 }
 
-func clip(s string, width int) string { return ansi.Truncate(safe.Line(s), width, "...") }
+func clip(s string, width int) string { return ansi.Truncate(safe.Inline(s), width, "...") }

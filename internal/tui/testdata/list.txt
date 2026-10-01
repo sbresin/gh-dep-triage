@@ -1,10 +1,10 @@
 dep-triage | sort package | 1/4 selected | user octocat
-j/k move s sort Enter expand Space select o open d describe b blockers g reload c confirm q quit
-  󰡖 acme/api#3 axios -> 1.7.0 [minor]                                             behind  review  --
-  󰡖 acme/api#4 eslint -> 9.1.0 [major]                                         merging  approved  --
+j/k move  s sort  Enter expand  Space select  o open  d describe  b blockers  g reload  c confirm...
+  󰡖 acme/api#3  axios -> 1.7.0 [minor]                                            behind  review  --
+  󰡖 acme/api#4  eslint -> 9.1.0 [major]                                        merging  approved  --
 ▾ 󰄴 lodash -> 4.17.21 [patch] (2 PRs)                                                     sel 1/2  󰄬
-│ 󰄵 acme/api#1 4.17.20 -> 4.17.21                                                         review  --
-└ 󰄱 acme/web#2 4.17.20 -> 4.17.21                                                         review  --
+│ 󰄵 acme/api#1  4.17.20 -> 4.17.21                                                        review  --
+└ 󰄱 acme/web#2  4.17.20 -> 4.17.21                                                        review  --
 
 
 

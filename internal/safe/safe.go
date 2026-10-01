@@ -17,6 +17,17 @@ func Text(s string) string {
 	}, s)
 }
 
+// Inline is Text for single-line UI that keeps spacing: newlines and tabs
+// become spaces.
+func Inline(s string) string {
+	return Text(strings.Map(func(r rune) rune {
+		if r == '\n' || r == '\r' || r == '\t' {
+			return ' '
+		}
+		return r
+	}, s))
+}
+
 // Line is Text collapsed onto one line, for single-line UI elements.
 func Line(s string) string {
 	return strings.Join(strings.Fields(Text(s)), " ")
