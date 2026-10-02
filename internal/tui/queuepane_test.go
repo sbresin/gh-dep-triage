@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/google/go-cmp/cmp"
 	"github.com/sbresin/gh-dep-triage/internal/executor"
@@ -40,6 +41,8 @@ func TestSplitLayoutGolden(t *testing.T) {
 		golden string
 	}{{120, "split_wide.txt"}, {80, "split_narrow.txt"}} {
 		m, _ := queueModel(t, tt.width)
+		m.snap = snapshot(append(fixture().PRs(), mkPR("acme/ops", 9, "Bump zod from 3.0.0 to 3.0.1"))...) // one unqueued row
+		m.fixScroll()
 		got := plain(m)
 		lines := strings.Split(got, "\n")
 		if len(lines) != 12 {
@@ -50,12 +53,20 @@ func TestSplitLayoutGolden(t *testing.T) {
 				t.Errorf("%d: line width %d: %q", tt.width, w, l)
 			}
 		}
-		for _, want := range []string{"queue ✓1 ⟳1 ⏳1 ✗1", "Queue 4 · ✓1 ⟳1 ⏳1 ✗1", iconRunning + " api#3"} {
+		for _, want := range []string{"queue ✓1 ⟳1 ⏳1 ✗1", "Queue 4 · ✓1 ⟳1 ⏳1 ✗1", iconRunning + " api#3", "acme/ops#9  zod -> 3.0.1"} {
 			if !strings.Contains(got, want) {
 				t.Errorf("%d: missing %q:\n%s", tt.width, want, got)
 			}
 		}
 		assertGolden(t, tt.golden, got)
+	}
+}
+
+func TestKeyHelpFits100Columns(t *testing.T) {
+	for _, k := range []string{listKeys, queueKeys} {
+		if w := lipgloss.Width(k); w > 100 {
+			t.Errorf("key help is %d columns: %q", w, k)
+		}
 	}
 }
 
