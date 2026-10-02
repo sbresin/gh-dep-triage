@@ -26,7 +26,7 @@ type confirmState struct {
 func (m Model) markedPRs() []*model.PR {
 	out := []*model.PR{}
 	for _, pr := range m.snap.PRs() {
-		if m.selected[pr.Ref] && markable(pr, m.badges) {
+		if m.selected[pr.Ref] && selectable(pr) {
 			out = append(out, pr)
 		}
 	}
@@ -92,6 +92,7 @@ func (m Model) submitConfirmed() (tea.Model, tea.Cmd) {
 	}
 	m.selected = map[string]bool{}
 	m.syncJobs(false)
+	m.fixScroll()
 	m.status = fmt.Sprintf("Queued %d PR(s) for Approve+Merge.", queued)
 	if len(problems) > 0 {
 		m.status += " Not queued: " + strings.Join(problems, "; ") + "."

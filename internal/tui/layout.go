@@ -91,11 +91,14 @@ func (m Model) queueTitle() string {
 
 func (m Model) listBody(width, height int) []string {
 	rows := m.rows()
+	if len(rows) == 0 && len(m.snap.PRs()) > 0 {
+		return []string{styleDim.Render(clip("All PRs are in the queue.", width))}
+	}
 	out := []string{}
 	for i := m.scroll; i < min(len(rows), m.scroll+height); i++ {
-		lead, check, text, badges := rowParts(rows[i], m.selected, m.expanded, m.badges)
+		lead, check, text, badges := rowParts(rows[i], m.selected, m.expanded)
 		focused := m.focus == paneList && i == m.cursor
-		out = append(out, rowStyle(rows[i], m.selected, focused, m.badges).Render(layoutRow(lead, check, text, badges, width)))
+		out = append(out, rowStyle(rows[i], m.selected, focused).Render(layoutRow(lead, check, text, badges, width)))
 	}
 	return out
 }

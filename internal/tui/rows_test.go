@@ -6,7 +6,6 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/google/go-cmp/cmp"
-	"github.com/sbresin/gh-dep-triage/internal/executor"
 	"github.com/sbresin/gh-dep-triage/internal/model"
 )
 
@@ -80,10 +79,10 @@ func TestBadgesAndCheckboxes(t *testing.T) {
 	if diff := cmp.Diff([]string{"merging", "approved", "--"}, prBadges(find("acme/api#4"))); diff != "" {
 		t.Errorf("merging PR badges (-want +got):\n%s", diff)
 	}
-	if prCheckbox(find("acme/api#3"), sel, nil) != iconBoxBlocked || prCheckbox(find("acme/api#4"), sel, nil) != iconBoxBlocked {
+	if prCheckbox(find("acme/api#3"), sel) != iconBoxBlocked || prCheckbox(find("acme/api#4"), sel) != iconBoxBlocked {
 		t.Error("blocked and merging PRs show the blocked checkbox")
 	}
-	if prCheckbox(find("acme/api#1"), sel, nil) != iconBoxOn || prCheckbox(find("acme/web#2"), sel, nil) != iconBoxOff {
+	if prCheckbox(find("acme/api#1"), sel) != iconBoxOn || prCheckbox(find("acme/web#2"), sel) != iconBoxOff {
 		t.Error("ready PR checkboxes follow selection")
 	}
 	var lodash *model.Group
@@ -92,10 +91,10 @@ func TestBadgesAndCheckboxes(t *testing.T) {
 			lodash = g
 		}
 	}
-	if groupCheckbox(lodash, sel, nil) != iconBoxPartial {
+	if groupCheckbox(lodash, sel) != iconBoxPartial {
 		t.Error("half-selected group shows partial")
 	}
-	if diff := cmp.Diff([]string{"sel 1/2", iconCheckOK}, groupBadges(lodash, sel, nil)); diff != "" {
+	if diff := cmp.Diff([]string{"sel 1/2", iconCheckOK}, groupBadges(lodash, sel)); diff != "" {
 		t.Errorf("group badges (-want +got):\n%s", diff)
 	}
 	failing := mkPR("acme/x", 9, "Bump a from 1.0.0 to 1.0.1", func(p *model.PR) {
@@ -137,7 +136,7 @@ func TestRowsStripControlSequences(t *testing.T) {
 	evil := mkPR("acme/api", 7, "Bump \x1b]52;c;SGVsbG8=\x07evil from 1.0.0 to\n 1.0.1")
 	s := snapshot(evil)
 	r := buildRows(s.Groups, "package", map[string]bool{})[0]
-	lead, box, body, badges := rowParts(r, map[string]bool{}, map[string]bool{}, nil)
+	lead, box, body, badges := rowParts(r, map[string]bool{}, map[string]bool{})
 	out := layoutRow(lead, box, body, badges, 100)
 	if strings.ContainsAny(out, "\x1b\x07\n") {
 		t.Errorf("control characters leaked: %q", out)
@@ -147,32 +146,10 @@ func TestRowsStripControlSequences(t *testing.T) {
 func TestRowStyleTints(t *testing.T) {
 	s := fixture()
 	rows := buildRows(s.Groups, "package", map[string]bool{})
-	if rowStyle(rows[0], nil, false, nil).GetForeground() != styleYellow.GetForeground() {
+	if rowStyle(rows[0], nil, false).GetForeground() != styleYellow.GetForeground() {
 		t.Error("blocked PR row is yellow")
 	}
-	if !rowStyle(rows[2], nil, true, nil).GetReverse() || !rowStyle(rows[2], nil, false, nil).GetBold() {
+	if !rowStyle(rows[2], nil, true).GetReverse() || !rowStyle(rows[2], nil, false).GetBold() {
 		t.Error("focused rows are reversed, group rows bold")
-	}
-}
-
-func TestJobBadgesAndCheckbox(t *testing.T) {
-	rows := buildRows(fixture().Groups, "repo", map[string]bool{}) // api#1, api#3, api#4, web#2
-	pr := rows[0].pr
-	jobs := func(j executor.Job) map[string]executor.Job {
-		j.PR = pr
-		return map[string]executor.Job{"acme/api#1": j}
-	}
-	_, box, _, badges := rowParts(rows[0], map[string]bool{}, map[string]bool{}, jobs(executor.Job{State: executor.JobQueued}))
-	if box != iconQueued || badges[0] != iconQueued+" queued" {
-		t.Errorf("queued: box=%q badges=%v", box, badges)
-	}
-	done := jobs(executor.Job{State: executor.JobDone, Result: model.Result{Status: model.ResultSuccess}})
-	_, box, _, badges = rowParts(rows[0], map[string]bool{}, map[string]bool{}, done)
-	if box != iconBoxOff || badges[0] != iconDone+" done" || !rowStyle(rows[0], nil, false, done).GetFaint() {
-		t.Errorf("done: box=%q badges=%v (finished rows are dimmed)", box, badges)
-	}
-	failed := jobs(executor.Job{State: executor.JobDone, Result: model.Result{Status: model.ResultFailed}})
-	if _, _, _, badges = rowParts(rows[0], map[string]bool{}, map[string]bool{}, failed); badges[0] != iconFailed+" failed" {
-		t.Errorf("failed: badges=%v", badges)
 	}
 }

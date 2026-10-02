@@ -7,7 +7,24 @@ import (
 	"github.com/sbresin/gh-dep-triage/internal/model"
 )
 
-func (m Model) rows() []row { return buildRows(m.snap.Groups, m.sortMode, m.expanded) }
+// rows leaves out PRs with any job in m.badges; they show in the queue pane.
+func (m Model) rows() []row {
+	groups := []*model.Group{}
+	for _, g := range m.snap.Groups {
+		prs := []*model.PR{}
+		for _, pr := range g.PRs {
+			if _, queued := m.badges[refKey(pr.Ref)]; !queued {
+				prs = append(prs, pr)
+			}
+		}
+		if len(prs) > 0 {
+			c := *g
+			c.PRs = prs
+			groups = append(groups, &c)
+		}
+	}
+	return buildRows(groups, m.sortMode, m.expanded)
+}
 
 func (m Model) listHeight() int { return m.bodyHeight() }
 
@@ -117,8 +134,8 @@ func rowID(r row) string {
 }
 
 // onReloaded swaps in a reloaded snapshot. A mark is kept only while its PR
-// is still markable at the head the user saw. Badges are rebuilt from the
-// queue's current jobs, so badges of cleared jobs disappear.
+// is still ready at the head the user saw. Badges are rebuilt from the
+// queue's current jobs, so PRs of cleared jobs return to the list.
 func (m Model) onReloaded(msg reloadedMsg) (tea.Model, tea.Cmd) {
 	m.reloading = false
 	status := ""
@@ -147,7 +164,7 @@ func (m Model) onReloaded(msg reloadedMsg) (tea.Model, tea.Cmd) {
 		for ref := range m.selected {
 			pr := m.findPR(ref)
 			switch {
-			case pr == nil || !markable(pr, m.badges):
+			case pr == nil || !selectable(pr):
 				delete(m.selected, ref)
 			case pr.HeadOid != heads[ref]:
 				delete(m.selected, ref)
@@ -171,7 +188,7 @@ func (m Model) onReloaded(msg reloadedMsg) (tea.Model, tea.Cmd) {
 
 func (m *Model) toggle(r row) {
 	if r.isGroup() {
-		ready := groupSelectable(r.group, m.badges)
+		ready := groupSelectable(r.group)
 		if len(ready) == 0 {
 			m.status = fmt.Sprintf("No PR in %s can be merged now; press b on a PR to see why.", groupLabel(r.group))
 			return
@@ -196,8 +213,6 @@ func (m *Model) toggle(r row) {
 	}
 	pr := r.pr
 	switch {
-	case activeJob(m.badges, pr.Ref):
-		m.status = pr.Ref + " is already queued."
 	case !selectable(pr):
 		m.status = fmt.Sprintf("%s is %s; press b to see why.", pr.Ref, pr.Status)
 	case m.selected[pr.Ref]:

@@ -128,21 +128,20 @@ func TestReloadOnOtherScreenKeepsStatus(t *testing.T) {
 	}
 }
 
-func TestReloadKeepsActiveBadgesDropsCleared(t *testing.T) {
+func TestReloadKeepsQueuedPRsHidden(t *testing.T) {
 	fq := newFakeQueue()
 	deps := Deps{Queue: fq, Load: func(context.Context) (*model.Snapshot, error) { return fixture(), nil }}
-	m, _ := press(selectLodash(newTest(fixture(), deps)), "y", "enter")
+	m, _ := press(selectLodash(newTest(fixture(), deps)), "y")
 	m = deliver(m, fq.set(1, executor.JobDone, "", success("acme/api#1")))
 	fq.ClearFinished()
-	if !strings.Contains(plain(m), iconDone+" done") {
-		t.Fatalf("a cleared job keeps its badge until the next reload:\n%s", plain(m))
+	if got := listText(m); strings.Contains(got, "lodash") {
+		t.Fatalf("a cleared job's PR stays hidden until the next reload:\n%s", got)
 	}
 	m, cmd := press(m, "g")
 	nm, _ := m.Update(cmd())
 	m = nm.(Model)
-	got := plain(m)
-	if strings.Contains(got, iconDone+" done") || !strings.Contains(got, iconQueued+" queued") {
-		t.Errorf("after reload only the queued badge remains:\n%s", got)
+	if got := listText(m); !strings.Contains(got, "acme/api#1  lodash") || strings.Contains(got, "acme/web#2") || len(m.rows()) != 3 {
+		t.Errorf("after reload the cleared PR returns, the queued one stays hidden:\n%s", got)
 	}
 }
 

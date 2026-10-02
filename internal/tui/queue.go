@@ -39,17 +39,6 @@ func listen(ch <-chan executor.Event) tea.Cmd {
 
 func refKey(ref string) string { return strings.ToLower(ref) }
 
-// activeJob reports whether ref has a queued or running job.
-func activeJob(jobs map[string]executor.Job, ref string) bool {
-	j, ok := jobs[refKey(ref)]
-	return ok && !j.Finished()
-}
-
-// markable reports whether pr may be marked for Approve+Merge.
-func markable(pr *model.PR, jobs map[string]executor.Job) bool {
-	return selectable(pr) && !activeJob(jobs, pr.Ref)
-}
-
 func (m Model) onQueue(msg queueMsg) (tea.Model, tea.Cmd) {
 	if msg.closed || msg.ev.Kind == executor.EventClosed {
 		m.syncJobs(false)

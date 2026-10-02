@@ -1,8 +1,8 @@
 dep-triage | sort package | 0 marked | queue ✓1 ⟳1 ⏳1 ✗1 | user octocat
 ┌─ PRs ──────────────────────────────────────────────────────────────────────┐┌─ Queue 4 · ✓1 ⟳1 ⏳1 ✗1 ───────────────┐
-│  ⟳ acme/api#3  axios -> 1.7.0 [minor]         ⟳ running  behind  review  --││✓ api#1  lodash -> 4.17.21 [patch]  a...│
-│  ⏳ acme/api#4  eslint -> 9.1.0 [major]    ⏳ queued  merging  approved  --││✗ web#2  lodash -> 4.17.21 [patch]  h...│
-│▸ 󰄱 lodash -> 4.17.21 [patch] (2 PRs)                             sel 0/2  󰄬││⟳ api#3  axios -> 1.7.0 [minor]  appr...│
+│All PRs are in the queue.                                                   ││✓ api#1  lodash -> 4.17.21 [patch]  a...│
+│                                                                            ││✗ web#2  lodash -> 4.17.21 [patch]  h...│
+│                                                                            ││⟳ api#3  axios -> 1.7.0 [minor]  appr...│
 │                                                                            ││⏳ api#4  eslint -> 9.1.0 [major]  qu...│
 │                                                                            ││                                        │
 │                                                                            ││                                        │

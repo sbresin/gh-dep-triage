@@ -9,17 +9,17 @@ import (
 	"github.com/sbresin/gh-dep-triage/internal/model"
 )
 
-func TestQueueEventsUpdateBadgesAndSummary(t *testing.T) {
+func TestQueueEventsUpdatePaneAndSummary(t *testing.T) {
 	fq := newFakeQueue()
-	m, _ := press(selectLodash(newTest(fixture(), Deps{Queue: fq})), "y", "enter")
+	m, _ := press(selectLodash(newTest(fixture(), Deps{Queue: fq})), "y")
 	nm, cmd := m.Update(queueMsg{ev: fq.set(1, executor.JobDone, "", success("acme/api#1"))})
 	m = nm.(Model)
 	if cmd == nil {
 		t.Error("the model keeps listening for events")
 	}
 	got := plain(m)
-	if !strings.Contains(got, iconDone+" done") || !strings.Contains(got, iconQueued+" queued") {
-		t.Errorf("badges:\n%s", got)
+	if !strings.Contains(got, iconDone+" api#1") || !strings.Contains(got, iconQueued+" web#2") {
+		t.Errorf("queue pane:\n%s", got)
 	}
 	if diff := cmp.Diff([]string{"success acme/api#1: approved, merged (squash)"}, m.Summary()); diff != "" {
 		t.Errorf("summary (-want +got):\n%s", diff)

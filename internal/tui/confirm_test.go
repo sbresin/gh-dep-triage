@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -61,9 +62,8 @@ func TestConfirmQueuesMarkedPRs(t *testing.T) {
 	if len(m.selected) != 0 || m.status != "Queued 2 PR(s) for Approve+Merge." || len(m.jobs) != 2 {
 		t.Errorf("selected=%v status=%q jobs=%d", m.selected, m.status, len(m.jobs))
 	}
-	m, _ = press(m, "enter")
-	if got := plain(m); !strings.Contains(got, iconQueued+" queued") {
-		t.Errorf("queued badge missing:\n%s", got)
+	if got := listText(m); strings.Contains(got, "lodash") || len(m.rows()) != 2 {
+		t.Errorf("queued lodash rows leave the list (rows=%d):\n%s", len(m.rows()), got)
 	}
 }
 
@@ -76,15 +76,47 @@ func TestSubmitErrorIsShown(t *testing.T) {
 	}
 }
 
-func TestQueuedPRCannotBeMarked(t *testing.T) {
-	m, _ := press(selectLodash(newTest(fixture(), Deps{Queue: newFakeQueue()})), "y")
-	m, _ = press(m, "enter", "j", "space")
-	if len(m.selected) != 0 || m.status != "acme/api#1 is already queued." {
-		t.Errorf("child row: selected=%v status=%q", m.selected, m.status)
+// listText is the list pane's body without styling.
+func listText(m Model) string {
+	return ansi.Strip(strings.Join(m.listBody(m.listWidth()-2, m.bodyHeight()), "\n"))
+}
+
+func TestQueuedPRsLeaveTheList(t *testing.T) {
+	fq := newFakeQueue()
+	m, _ := press(selectLodash(newTest(fixture(), Deps{Queue: fq,
+		Load: func(context.Context) (*model.Snapshot, error) { return fixture(), nil }})), "y")
+	hidden := func(when string) {
+		t.Helper()
+		got := listText(m)
+		if strings.Contains(got, "acme/api#1") || strings.Contains(got, "acme/web#2") || strings.Contains(got, "lodash") || len(m.rows()) != 2 {
+			t.Errorf("%s: queued PRs are hidden (rows=%d):\n%s", when, len(m.rows()), got)
+		}
 	}
-	m, _ = press(m, "k", "space")
-	if len(m.selected) != 0 || !strings.Contains(m.status, "can be merged now") {
-		t.Errorf("group row: selected=%v status=%q", m.selected, m.status)
+	hidden("queued")
+	m = deliver(m, fq.set(1, executor.JobDone, "", success("acme/api#1")))
+	m = deliver(m, fq.set(2, executor.JobDone, "", model.Result{Ref: "acme/web#2", Status: model.ResultFailed, Steps: []string{}}))
+	hidden("finished")
+	m, _ = press(m, "space", "j", "space", "j", "space")
+	if len(m.selected) != 0 {
+		t.Errorf("only blocked rows are left to mark: selected=%v", m.selected)
+	}
+	m, _ = press(m, "tab", "C", "tab")
+	hidden("cleared, before reload")
+	m, cmd := press(m, "g")
+	nm, _ := m.Update(cmd())
+	m = nm.(Model)
+	if got := listText(m); !strings.Contains(got, "lodash -> 4.17.21 [patch] (2 PRs)") || len(m.rows()) != 3 {
+		t.Errorf("cleared and reloaded PRs return (rows=%d):\n%s", len(m.rows()), got)
+	}
+}
+
+func TestAllPRsQueuedMessage(t *testing.T) {
+	m, _ := press(newTest(snapshot(mkPR("acme/api", 1, "Bump lodash from 4.17.20 to 4.17.21")), Deps{Queue: newFakeQueue()}), "space", "c", "y")
+	if got := listText(m); got != "All PRs are in the queue." {
+		t.Errorf("list pane = %q", got)
+	}
+	if got := listText(newTest(snapshot(), Deps{})); got != "" {
+		t.Errorf("an empty snapshot has no message: %q", got)
 	}
 }
 

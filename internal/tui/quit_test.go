@@ -160,7 +160,7 @@ func TestSubmitWhileCancellingShowsError(t *testing.T) {
 	m, _ = press(m, "j", "j", "space", "c", "y")
 	m = deliver(m, fq.set(1, executor.JobRunning, "approving", model.Result{}))
 	m, _ = press(m, "ctrl+c") // Stop(true): the queue now refuses new jobs
-	m, _ = press(m, "j")
+	m, _ = press(m, "j")      // lodash left the list: axios, eslint, zod
 	if r := m.rows()[m.cursor]; r.pr == nil || r.pr.Ref != "acme/ops#9" {
 		t.Fatalf("cursor on %+v", r)
 	}

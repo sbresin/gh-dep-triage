@@ -1,8 +1,8 @@
 dep-triage | sort package | 0 marked | queue ✓1 ⟳1 ⏳1 ✗1 | user octocat
 ┌─ PRs ────────────────────────────────────────────┐┌─ Queue 4 · ✓1 ⟳1 ⏳1 ✗1 ─┐
-│  ⟳ acme/api#3  a... ⟳ running  behind  review  --││✓ api#1                   │
-│  ⏳ acme/api#... ⏳ queued  merging  approved  --││✗ web#2                   │
-│▸ 󰄱 lodash -> 4.17.21 [patch] (2 PRs)   sel 0/2  󰄬││⟳ api#3                   │
+│All PRs are in the queue.                         ││✓ api#1                   │
+│                                                  ││✗ web#2                   │
+│                                                  ││⟳ api#3                   │
 │                                                  ││⏳ api#4                  │
 │                                                  ││                          │
 │                                                  ││                          │

@@ -6,7 +6,6 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/sbresin/gh-dep-triage/internal/executor"
 	"github.com/sbresin/gh-dep-triage/internal/model"
 	"github.com/sbresin/gh-dep-triage/internal/safe"
 	"github.com/sbresin/gh-dep-triage/internal/triage"
@@ -70,10 +69,10 @@ func buildRows(groups []*model.Group, sortMode string, expanded map[string]bool)
 
 func selectable(pr *model.PR) bool { return pr.Status == model.StatusReady }
 
-func groupSelectable(g *model.Group, jobs map[string]executor.Job) []*model.PR {
+func groupSelectable(g *model.Group) []*model.PR {
 	out := []*model.PR{}
 	for _, pr := range g.PRs {
-		if markable(pr, jobs) {
+		if selectable(pr) {
 			out = append(out, pr)
 		}
 	}
@@ -124,7 +123,7 @@ func prBadges(pr *model.PR) []string {
 	return append(out, scope, checkBadge(pr.Checks))
 }
 
-func groupBadges(g *model.Group, sel map[string]bool, jobs map[string]executor.Job) []string {
+func groupBadges(g *model.Group, sel map[string]bool) []string {
 	selected, failed, pending := 0, 0, 0
 	for _, pr := range g.PRs {
 		if sel[pr.Ref] {
@@ -138,7 +137,7 @@ func groupBadges(g *model.Group, sel map[string]bool, jobs map[string]executor.J
 		}
 	}
 	out := []string{}
-	if len(groupSelectable(g, jobs)) == 0 {
+	if len(groupSelectable(g)) == 0 {
 		out = append(out, "blocked")
 	}
 	out = append(out, fmt.Sprintf("sel %d/%d", selected, len(g.PRs)))
@@ -153,11 +152,7 @@ func groupBadges(g *model.Group, sel map[string]bool, jobs map[string]executor.J
 	return out
 }
 
-// prCheckbox shows the job icon while a job is queued or running.
-func prCheckbox(pr *model.PR, sel map[string]bool, jobs map[string]executor.Job) string {
-	if j, ok := jobs[refKey(pr.Ref)]; ok && !j.Finished() {
-		return jobIcon(j)
-	}
+func prCheckbox(pr *model.PR, sel map[string]bool) string {
 	switch {
 	case !selectable(pr):
 		return iconBoxBlocked
@@ -168,8 +163,8 @@ func prCheckbox(pr *model.PR, sel map[string]bool, jobs map[string]executor.Job)
 	}
 }
 
-func groupCheckbox(g *model.Group, sel map[string]bool, jobs map[string]executor.Job) string {
-	ready := groupSelectable(g, jobs)
+func groupCheckbox(g *model.Group, sel map[string]bool) string {
+	ready := groupSelectable(g)
 	n := 0
 	for _, pr := range ready {
 		if sel[pr.Ref] {
@@ -215,19 +210,16 @@ func versionLabel(pr *model.PR) string {
 	}
 }
 
-func rowParts(r row, sel, expanded map[string]bool, jobs map[string]executor.Job) (lead, box, body string, badges []string) {
+func rowParts(r row, sel, expanded map[string]bool) (lead, box, body string, badges []string) {
 	if r.isGroup() {
 		lead = iconCollapsed
 		if expanded[groupKey(r.group)] {
 			lead = iconExpanded
 		}
-		return lead, groupCheckbox(r.group, sel, jobs), groupLabel(r.group), groupBadges(r.group, sel, jobs)
+		return lead, groupCheckbox(r.group, sel), groupLabel(r.group), groupBadges(r.group, sel)
 	}
 	badges = prBadges(r.pr)
-	if j, ok := jobs[refKey(r.pr.Ref)]; ok {
-		badges = append([]string{jobIcon(j) + " " + jobWord(j)}, badges...)
-	}
-	box = prCheckbox(r.pr, sel, jobs)
+	box = prCheckbox(r.pr, sel)
 	if r.child {
 		lead = iconBranch
 		if r.last {
@@ -249,12 +241,12 @@ func layoutRow(lead, box, body string, badges []string, width int) string {
 	return ansi.Truncate(left+body+strings.Repeat(" ", pad)+right, width, "")
 }
 
-func rowStyle(r row, sel map[string]bool, focused bool, jobs map[string]executor.Job) lipgloss.Style {
+func rowStyle(r row, sel map[string]bool, focused bool) lipgloss.Style {
 	s := lipgloss.NewStyle()
 	failed, warn := false, false
 	if r.isGroup() {
 		s = s.Bold(true)
-		warn = len(groupSelectable(r.group, jobs)) == 0
+		warn = len(groupSelectable(r.group)) == 0
 		for _, pr := range r.group.PRs {
 			failed = failed || pr.Checks.Failed > 0
 			warn = warn || pr.Checks.Pending > 0
@@ -262,9 +254,6 @@ func rowStyle(r row, sel map[string]bool, focused bool, jobs map[string]executor
 	} else {
 		failed = r.pr.Checks.Failed > 0
 		warn = !selectable(r.pr) || r.pr.Checks.Pending > 0
-		if j, ok := jobs[refKey(r.pr.Ref)]; ok && j.State == executor.JobDone && j.Result.Status == model.ResultSuccess {
-			s = s.Faint(true)
-		}
 	}
 	switch {
 	case failed:
