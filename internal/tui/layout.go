@@ -46,7 +46,7 @@ func box(title string, body []string, width int, focused bool) []string {
 	return append(lines, border.Render("└"+strings.Repeat("─", inner)+"┘"))
 }
 
-// queueCounts summarizes jobs as e.g. "✓1 ⟳1 ⏳2 ✗1"; zero counts are left out.
+// queueCounts summarizes jobs as e.g. "✓ 1 ⟳ 1 ⏳ 2 ✗ 1"; zero counts are left out.
 func queueCounts(jobs []executor.Job) string {
 	n := map[string]int{}
 	for _, j := range jobs {
@@ -55,7 +55,7 @@ func queueCounts(jobs []executor.Job) string {
 	parts := []string{}
 	for _, icon := range []string{iconDone, iconRunning, iconQueued, iconFailed, iconSkipped} {
 		if n[icon] > 0 {
-			parts = append(parts, fmt.Sprintf("%s%d", icon, n[icon]))
+			parts = append(parts, fmt.Sprintf("%s %d", icon, n[icon]))
 		}
 	}
 	return strings.Join(parts, " ")

@@ -53,7 +53,11 @@ func TestSplitLayoutGolden(t *testing.T) {
 				t.Errorf("%d: line width %d: %q", tt.width, w, l)
 			}
 		}
-		for _, want := range []string{"queue ✓1 ⟳1 ⏳1 ✗1", "Queue 4 · ✓1 ⟳1 ⏳1 ✗1", iconRunning + " api#3", "acme/ops#9  zod -> 3.0.1"} {
+		wants := []string{"queue ✓ 1 ⟳ 1 ⏳ 1 ✗ 1", iconRunning + " api#3", "acme/ops#9  zod -> 3.0.1"}
+		if tt.width >= 100 { // the narrow pane truncates its title
+			wants = append(wants, "Queue 4 · ✓ 1 ⟳ 1 ⏳ 1 ✗ 1")
+		}
+		for _, want := range wants {
 			if !strings.Contains(got, want) {
 				t.Errorf("%d: missing %q:\n%s", tt.width, want, got)
 			}
