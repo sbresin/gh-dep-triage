@@ -314,3 +314,42 @@ func TestPumpDropsOnlySteps(t *testing.T) {
 		t.Errorf("(-want +got):\n%s", diff)
 	}
 }
+
+// A Stop(true) that lands right after a step is reported stops the job
+// before the mutation that step announces.
+func TestStopAtStepBoundarySkipsMutation(t *testing.T) {
+	clean := func(p *model.PR) { p.MergeStateStatus = "CLEAN" }
+	pending := func(p *model.PR) {
+		p.CheckRuns = []model.Check{githubtest.CheckRun("test", "IN_PROGRESS", "", 1)}
+	}
+	tests := []struct {
+		action, at, msg string
+		mods            []func(*model.PR)
+	}{
+		{"approve", "approving", "cancelled before approving", nil},
+		{"merge", "approving", "cancelled before approving", nil},
+		{"merge", "merging", "cancelled before merging", []func(*model.PR){approved, clean}},
+		{"merge", "enabling auto-merge", "cancelled before merging", []func(*model.PR){approved, pending}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.action+" "+tt.at, func(t *testing.T) {
+			f := newMergeFake(tt.mods...)
+			q := NewQueue(context.Background(), f, opts(&sleeps{}))
+			stepped := false
+			r := q.run(q.ctx, job(f, tt.action, "acme/api#1"), func(s string) {
+				if s == tt.at {
+					stepped = true
+					q.Stop(true)
+				}
+			})
+			if !stepped || r.Status != model.ResultSkipped || r.Reason != model.ReasonCancelled || r.Message != tt.msg {
+				t.Errorf("stepped=%v result %+v", stepped, r)
+			}
+			if len(f.Calls) != 0 {
+				t.Errorf("no mutation may run after Stop: %v", f.Calls)
+			}
+			for range q.Events() {
+			}
+		})
+	}
+}

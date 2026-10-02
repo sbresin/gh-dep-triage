@@ -212,3 +212,21 @@ func TestQueuePaneSanitizes(t *testing.T) {
 		t.Errorf("control sequence leaked: %q", raw)
 	}
 }
+
+func TestClearKeepsCursorOnFocusedJob(t *testing.T) {
+	m, fq := queueModel(t, 120)
+	_, _ = fq.Submit(model.ActionMerge, m.findPR("acme/web#2"))
+	m.syncJobs(false)
+	m, _ = press(m, "tab", "k", "C", "x") // api#4, queued
+	if diff := cmp.Diff([]executor.JobID{4}, fq.cancelled); diff != "" {
+		t.Errorf("x after C cancels the focused job (-want +got):\n%s", diff)
+	}
+}
+
+func TestNoPauseWhileQuittingWhenIdle(t *testing.T) {
+	m, fq := queueModel(t, 120)
+	m, _ = press(m, "tab", "q", "w", "p")
+	if !m.quitWhenIdle || fq.paused || m.paused || m.status != "Can't pause while quitting when idle; press w or esc to stay." {
+		t.Errorf("fq=%v m=%v status=%q", fq.paused, m.paused, m.status)
+	}
+}

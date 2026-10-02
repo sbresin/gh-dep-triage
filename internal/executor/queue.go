@@ -299,7 +299,7 @@ func (q *Queue) Cancel(id JobID) error {
 }
 
 func (q *Queue) cancelJob(j *Job) {
-	j.State, j.Step, j.Result = JobCancelled, "", cancelledResult(j.Action, j.PR)
+	j.State, j.Step, j.Result = JobCancelled, "", CancelledResult(j.Action, j.PR)
 	q.emit(EventFinished, j)
 }
 

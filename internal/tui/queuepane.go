@@ -111,8 +111,21 @@ func (m Model) updateQueue(k string) (tea.Model, tea.Cmd) {
 		return m.retryJob(j, ok)
 	case "C":
 		if m.deps.Queue != nil {
+			old := m.jobs[:min(m.qcursor, len(m.jobs))]
 			m.deps.Queue.ClearFinished()
 			m.syncJobs(false)
+			if !m.qfollow { // stay on the focused job, or the next one left
+				kept := map[executor.JobID]bool{}
+				for _, j := range m.jobs {
+					kept[j.ID] = true
+				}
+				m.qcursor = 0
+				for _, j := range old {
+					if kept[j.ID] {
+						m.qcursor++
+					}
+				}
+			}
 		}
 		m.status = "Cleared finished jobs."
 	case "p":
@@ -160,6 +173,10 @@ func (m Model) retryJob(j executor.Job, ok bool) (tea.Model, tea.Cmd) {
 
 func (m *Model) togglePause() {
 	if m.deps.Queue == nil {
+		return
+	}
+	if !m.paused && m.quitWhenIdle {
+		m.status = "Can't pause while quitting when idle; press w or esc to stay."
 		return
 	}
 	m.paused = !m.paused

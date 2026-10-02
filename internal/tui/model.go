@@ -104,7 +104,8 @@ func New(ctx context.Context, snap *model.Snapshot, deps Deps) Model {
 	return m
 }
 
-// Interrupted reports whether the user quit with ctrl+c.
+// Interrupted reports whether the run ended by ctrl+c, SIGINT, SIGTERM or a
+// cancelled context.
 func (m Model) Interrupted() bool { return m.interrupted }
 
 func (m Model) Init() tea.Cmd {

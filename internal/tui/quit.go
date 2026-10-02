@@ -105,10 +105,11 @@ func (m Model) viewQuit() string {
 }
 
 // forward turns each OS signal into a signalMsg and a cancelled ctx into one
-// ctxDoneMsg until stop is called.
+// ctxDoneMsg until stop is called. stop returns once forwarding has ended.
 func forward(ctx context.Context, sigs <-chan os.Signal, send func(tea.Msg)) (stop func()) {
-	done := make(chan struct{})
+	done, exited := make(chan struct{}), make(chan struct{})
 	go func() {
+		defer close(exited)
 		ctxDone := ctx.Done()
 		for {
 			select {
@@ -122,5 +123,5 @@ func forward(ctx context.Context, sigs <-chan os.Signal, send func(tea.Msg)) (st
 			}
 		}
 	}()
-	return func() { close(done) }
+	return func() { close(done); <-exited }
 }

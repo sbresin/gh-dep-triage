@@ -100,9 +100,8 @@ func (a *app) runQueue(ctx context.Context, client github.Client, viewer string,
 	q.Pause()
 	for i, t := range tasks {
 		id, err := q.Submit(t.Action, t.PR)
-		if err != nil { // the queue closed: Ctrl-C arrived before this task was queued
-			results[i] = model.Result{Action: t.Action, Ref: t.PR.Ref, HeadOid: t.PR.HeadOid, Steps: []string{},
-				Status: model.ResultSkipped, Reason: model.ReasonCancelled, Message: "cancelled before it started"}
+		if err != nil { // Submit failed: the queue closed after Ctrl-C
+			results[i] = executor.CancelledResult(t.Action, t.PR)
 			a.progressResult(results[i])
 			continue
 		}

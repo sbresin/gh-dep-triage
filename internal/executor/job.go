@@ -20,7 +20,8 @@ func finish(r model.Result, status, reason, message string) model.Result {
 	return r
 }
 
-func cancelledResult(action string, pr *model.PR) model.Result {
+// CancelledResult is the result of a job cancelled before it started.
+func CancelledResult(action string, pr *model.PR) model.Result {
 	return finish(newResult(action, pr), model.ResultSkipped, model.ReasonCancelled, "cancelled before it started")
 }
 
@@ -30,13 +31,13 @@ func cancelledResult(action string, pr *model.PR) model.Result {
 func (q *Queue) run(ctx context.Context, j Job, step func(string)) model.Result {
 	r := newResult(j.Action, j.PR)
 	if ctx.Err() != nil {
-		return cancelledResult(j.Action, j.PR)
+		return CancelledResult(j.Action, j.PR)
 	}
 	step("checking")
 	fresh, err := q.fetch(ctx, j.PR.PRRef())
 	switch {
 	case ctx.Err() != nil:
-		return cancelledResult(j.Action, j.PR)
+		return CancelledResult(j.Action, j.PR)
 	case err != nil:
 		return finish(r, model.ResultFailed, model.ReasonRefetchFailed, err.Error())
 	case fresh.State != "OPEN":
@@ -71,6 +72,9 @@ func (q *Queue) approve(ctx context.Context, r model.Result, pr *model.PR, step 
 		return finish(r, model.ResultSkipped, model.ReasonAlreadyApproved, "")
 	}
 	step("approving")
+	if ctx.Err() != nil {
+		return finish(r, model.ResultSkipped, model.ReasonCancelled, "cancelled before approving")
+	}
 	if err := q.mutate(ctx, func(c context.Context) error { return q.c.Approve(c, pr.ID, pr.HeadOid) }); err != nil {
 		return finish(r, model.ResultFailed, model.ReasonMutationFailed, err.Error())
 	}
@@ -112,6 +116,9 @@ func (q *Queue) merge(ctx context.Context, r model.Result, pr *model.PR, step fu
 	refetch := pr.MergeStateStatus == "UNKNOWN"
 	if !pr.ViewerApproved {
 		step("approving")
+		if ctx.Err() != nil {
+			return finish(r, model.ResultSkipped, model.ReasonCancelled, "cancelled before approving")
+		}
 		if err := q.mutate(ctx, func(c context.Context) error { return q.c.Approve(c, pr.ID, pr.HeadOid) }); err != nil {
 			return finish(r, model.ResultFailed, model.ReasonMutationFailed, err.Error())
 		}
@@ -145,13 +152,13 @@ func (q *Queue) merge(ctx context.Context, r model.Result, pr *model.PR, step fu
 	if method == "" {
 		return finish(r, model.ResultSkipped, model.ReasonNoMergeMethod, "the repo allows no merge method")
 	}
-	if ctx.Err() != nil {
-		return finish(r, model.ResultSkipped, model.ReasonCancelled, "cancelled before merging")
-	}
 	label := strings.ToLower(method)
 	switch {
 	case cur.MergeStateStatus == "CLEAN" || cur.MergeStateStatus == "HAS_HOOKS":
 		step("merging")
+		if ctx.Err() != nil {
+			return finish(r, model.ResultSkipped, model.ReasonCancelled, "cancelled before merging")
+		}
 		if err := q.mutate(ctx, func(c context.Context) error { return q.c.Merge(c, cur.ID, pr.HeadOid, method) }); err != nil {
 			return finish(r, model.ResultFailed, model.ReasonMutationFailed, err.Error())
 		}
@@ -160,6 +167,9 @@ func (q *Queue) merge(ctx context.Context, r model.Result, pr *model.PR, step fu
 		return finish(r, model.ResultSkipped, model.ReasonNotMergeable, "merge conflicts with "+cur.BaseRef)
 	case cur.RepoSettings.AutoMergeAllowed:
 		step("enabling auto-merge")
+		if ctx.Err() != nil {
+			return finish(r, model.ResultSkipped, model.ReasonCancelled, "cancelled before merging")
+		}
 		if err := q.mutate(ctx, func(c context.Context) error { return q.c.EnableAutoMerge(c, cur.ID, pr.HeadOid, method) }); err != nil {
 			return finish(r, model.ResultFailed, model.ReasonMutationFailed, err.Error())
 		}
