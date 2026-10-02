@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -50,6 +51,10 @@ func key(s string) tea.KeyPressMsg {
 		return tea.KeyPressMsg{Code: tea.KeyDown}
 	case "up":
 		return tea.KeyPressMsg{Code: tea.KeyUp}
+	case "pgup":
+		return tea.KeyPressMsg{Code: tea.KeyPgUp}
+	case "pgdown":
+		return tea.KeyPressMsg{Code: tea.KeyPgDown}
 	case "ctrl+c":
 		return tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
 	}
@@ -205,4 +210,33 @@ func TestListViewGolden(t *testing.T) {
 	m := newTest(fixture(), Deps{})
 	m, _ = press(m, "j", "j", "enter", "j", "space")
 	assertGolden(t, "list.txt", plain(m))
+}
+
+func TestListPageKeys(t *testing.T) {
+	var prs []*model.PR
+	for n := 1; n <= 12; n++ {
+		prs = append(prs, mkPR(fmt.Sprintf("acme/r%02d", n), n, fmt.Sprintf("Bump pkg%02d from 1.0.0 to 1.0.1", n)))
+	}
+	m := newTest(snapshot(prs...), Deps{})
+	page := m.listHeight()
+	if page != 7 || len(m.rows()) != 12 {
+		t.Fatalf("page=%d rows=%d", page, len(m.rows()))
+	}
+	visible := func(want int) {
+		t.Helper()
+		if m.cursor != want {
+			t.Errorf("cursor = %d, want %d", m.cursor, want)
+		}
+		if ref := m.rows()[m.cursor].pr.Ref; !strings.Contains(plain(m), ref) {
+			t.Errorf("focused %s not visible:\n%s", ref, plain(m))
+		}
+	}
+	m, _ = press(m, "pgdown")
+	visible(page)
+	m, _ = press(m, "pgdown", "pgdown")
+	visible(11)
+	m, _ = press(m, "pgup")
+	visible(11 - page)
+	m, _ = press(m, "pgup", "pgup")
+	visible(0)
 }

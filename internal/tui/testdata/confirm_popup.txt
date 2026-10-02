@@ -8,5 +8,5 @@ dep-triage | sort package | 2 marked | user octocat
 │           │ Pinned to the commits shown. Each PR is re-checked right before it runs. │           │
 │           │                                                                          │           │
 └───────────│ y queue  n/esc back                                                      │───────────┘
-tab queue  s╰──────────────────────────────────────────────────────────────────────────╯ad  q quit
+tab queue  p╰──────────────────────────────────────────────────────────────────────────╯blockers ...
 Selected 2 PRs in the group.

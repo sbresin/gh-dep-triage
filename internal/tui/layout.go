@@ -18,7 +18,7 @@ const (
 )
 
 const (
-	listKeys  = "tab queue  space mark  c confirm  enter fold  s sort  o open  d desc  b blockers  g reload  q quit"
+	listKeys  = "tab queue  pgup/pgdn page  space mark  c confirm  enter fold  s sort  o open  d desc  b blockers  g reload  q quit"
 	queueKeys = "tab list  j/k move  x cancel  r retry  C clear  p pause  o open  d desc  b details  q quit"
 )
 

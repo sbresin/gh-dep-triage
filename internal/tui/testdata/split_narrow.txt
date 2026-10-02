@@ -8,5 +8,5 @@ dep-triage | sort package | 0 marked | queue ✓1 ⟳1 ⏳1 ✗1 | user octocat
 │                                                  ││                          │
 │                                                  ││                          │
 └──────────────────────────────────────────────────┘└──────────────────────────┘
-tab queue  space mark  c confirm  enter fold  s sort  o open  d desc  b block...
+tab queue  pgup/pgdn page  space mark  c confirm  enter fold  s sort  o open ...
 Space toggles Approve+Merge for the focused row.

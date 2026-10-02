@@ -87,6 +87,10 @@ func (m Model) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.cursor++
 	case "k", "up":
 		m.cursor--
+	case "pgdown":
+		m.cursor += m.listHeight()
+	case "pgup":
+		m.cursor -= m.listHeight()
 	case "s":
 		m.sortMode = nextSort(m.sortMode)
 		m.cursor, m.scroll = 0, 0
