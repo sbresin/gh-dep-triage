@@ -204,5 +204,6 @@ func (a *app) rootCmd() *cobra.Command {
 	root.AddCommand(a.mutateCmd(model.ActionRequestReview, "Request a review from a user or org/team (dry run unless --yes)"))
 	root.AddCommand(a.mutateCmd(model.ActionClose, "Comment and close superseded or stale PRs (dry run unless --yes)"))
 	root.AddCommand(a.applyCmd())
+	root.AddCommand(a.skillCmd())
 	return root
 }
