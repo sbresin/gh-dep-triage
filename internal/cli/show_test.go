@@ -1,9 +1,12 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/sbresin/gh-dep-triage/internal/model"
 )
 
 func TestShowJSONWithLogs(t *testing.T) {
@@ -78,5 +81,14 @@ func TestTailLines(t *testing.T) {
 	}
 	if tailLines("a\nb\n", 200) != "a\nb" {
 		t.Error("short log must be returned whole without trailing newline")
+	}
+}
+
+func TestShowRiskIsSanitized(t *testing.T) {
+	var buf bytes.Buffer
+	pr := &model.PR{Ref: "acme/api#1", Risk: &model.Risk{SourceRepo: "github.com/x/\x1b[31mred", Findings: []string{"\x1b]0;pwn\x07"}}}
+	writeShow(&buf, showData{PR: pr})
+	if strings.ContainsRune(buf.String(), '\x1b') || !strings.Contains(buf.String(), "Risk:") {
+		t.Errorf("risk line not sanitized or missing:\n%q", buf.String())
 	}
 }

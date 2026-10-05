@@ -65,6 +65,7 @@ type rawPR struct {
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
 	HeadRefOid          string
+	HeadRefName         string
 	BaseRefName         string
 	MergeStateStatus    string
 	Mergeable           string
@@ -143,7 +144,7 @@ func toPR(ref model.PRRef, repo *rawRepo) (*model.PR, bool) {
 		Repo: ref.Repo, Number: ref.Number, Ref: ref.String(),
 		Title: raw.Title, URL: raw.URL, Body: raw.Body, State: raw.State, IsDraft: raw.IsDraft,
 		CreatedAt: raw.CreatedAt, UpdatedAt: raw.UpdatedAt,
-		HeadOid: raw.HeadRefOid, BaseRef: raw.BaseRefName,
+		HeadOid: raw.HeadRefOid, HeadRefName: raw.HeadRefName, BaseRef: raw.BaseRefName,
 		MergeStateStatus: raw.MergeStateStatus, Mergeable: raw.Mergeable, ReviewDecision: raw.ReviewDecision,
 		AutoMerge:          raw.AutoMergeRequest != nil,
 		RequestedReviewers: []string{},

@@ -37,7 +37,7 @@ const repoFields = `nameWithOwner mergeCommitAllowed squashMergeAllowed rebaseMe
 func prFields(number int) string {
 	return fmt.Sprintf(`pullRequest(number: %[1]d) {
       number id title url body state isDraft createdAt updatedAt
-      headRefOid baseRefName mergeStateStatus mergeable reviewDecision isMergeQueueEnabled
+      headRefOid headRefName baseRefName mergeStateStatus mergeable reviewDecision isMergeQueueEnabled
       author { __typename login }
       autoMergeRequest { enabledAt }
       reviews(author: $viewer, last: 20) { nodes { state submittedAt } }

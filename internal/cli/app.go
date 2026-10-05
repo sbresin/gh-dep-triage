@@ -12,6 +12,7 @@ import (
 
 	"github.com/cli/go-gh/v2/pkg/term"
 	"github.com/sbresin/gh-dep-triage/internal/config"
+	"github.com/sbresin/gh-dep-triage/internal/depsdev"
 	"github.com/sbresin/gh-dep-triage/internal/github"
 	"github.com/sbresin/gh-dep-triage/internal/loader"
 	"github.com/sbresin/gh-dep-triage/internal/model"
@@ -54,6 +55,7 @@ type app struct {
 	isTTY     func() bool
 	browse    func(url string) error
 	runTUI    func(ctx context.Context, snap *model.Snapshot, deps tui.Deps) (int, []string, error)
+	depsDev   loader.RiskLookup
 }
 
 func Execute() int {
@@ -73,8 +75,9 @@ func Execute() int {
 			}
 			return c, nil
 		},
-		isTTY:  term.FromEnv().IsTerminalOutput,
-		browse: quietBrowse(),
+		depsDev: depsdev.New(),
+		isTTY:   term.FromEnv().IsTerminalOutput,
+		browse:  quietBrowse(),
 		runTUI: func(ctx context.Context, s *model.Snapshot, d tui.Deps) (int, []string, error) {
 			return tui.Run(ctx, s, d, os.Stdin, os.Stdout)
 		},
@@ -93,7 +96,7 @@ func (a *app) loadSnapshotWith(ctx context.Context, progress bool) (github.Clien
 	if err != nil {
 		return nil, nil, err
 	}
-	opts := loader.Options{Limit: a.opts.limit, Workers: a.opts.workers, Team: a.opts.team, Bots: a.cfg.Bots, Now: a.now}
+	opts := loader.Options{Limit: a.opts.limit, Workers: a.opts.workers, Team: a.opts.team, Bots: a.cfg.Bots, Now: a.now, DepsDev: a.depsDev}
 	if progress {
 		opts.Progress = func(format string, args ...any) { fmt.Fprintf(a.stderr, format+"\n", args...) }
 	}

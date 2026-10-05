@@ -141,6 +141,7 @@ type PR struct {
 	Blockers           []Blocker    `json:"blockers"`
 	Status             Status       `json:"status"`
 	MergeDenied        string       `json:"mergeDenied,omitempty"`
+	Risk               *Risk        `json:"risk,omitempty"`
 
 	PackageKey           string       `json:"-"`
 	State                string       `json:"-"`
@@ -151,6 +152,7 @@ type PR struct {
 	CheckRuns            []Check      `json:"-"`
 	RepoSettings         RepoSettings `json:"-"`
 	ID                   string       `json:"-"`
+	HeadRefName          string       `json:"-"`
 }
 
 func (p *PR) PRRef() PRRef { return PRRef{Repo: p.Repo, Number: p.Number} }

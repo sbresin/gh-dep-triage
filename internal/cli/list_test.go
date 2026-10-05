@@ -8,6 +8,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/sbresin/gh-dep-triage/internal/github"
 	"github.com/sbresin/gh-dep-triage/internal/github/githubtest"
+	"github.com/sbresin/gh-dep-triage/internal/model"
 )
 
 type envelopeView struct {
@@ -204,6 +205,24 @@ func TestListInvalidFilters(t *testing.T) {
 		e := decodeEnvelope(t, out)
 		if code != ExitError || len(e.Errors) != 1 || e.Errors[0].Code != "invalid_argument" {
 			t.Errorf("%v: code=%d errors=%+v", args, code, e.Errors)
+		}
+	}
+}
+
+func TestRiskLabel(t *testing.T) {
+	tests := []struct {
+		risk *model.Risk
+		want string
+	}{
+		{nil, "-"},
+		{&model.Risk{System: "NPM"}, "-"},
+		{&model.Risk{Stars: 61277, Scorecard: 7.5}, "61k★ 7.5"},
+		{&model.Risk{Stars: 420}, "420★"},
+		{&model.Risk{Stars: 61277, Findings: []string{"COOLDOWN", "DEPRECATED"}}, "COOLDOWN"},
+	}
+	for _, tt := range tests {
+		if got := riskLabel(tt.risk); got != tt.want {
+			t.Errorf("riskLabel(%+v) = %q, want %q", tt.risk, got, tt.want)
 		}
 	}
 }

@@ -24,6 +24,12 @@ type Options struct {
 	Bots     []string
 	Now      func() time.Time
 	Progress func(format string, args ...any)
+	DepsDev  RiskLookup // nil skips the deps.dev lookup
+}
+
+// RiskLookup fetches deps.dev risk data (implemented by depsdev.Client).
+type RiskLookup interface {
+	Lookup(ctx context.Context, keys []model.DepKey) (map[model.DepKey]model.Risk, error)
 }
 
 func (o Options) withDefaults() Options {
@@ -99,6 +105,9 @@ func Load(ctx context.Context, c github.Client, o Options) (*model.Snapshot, err
 	groups := triage.Build(kept, now)
 	if groups == nil {
 		groups = []*model.Group{}
+	}
+	if o.DepsDev != nil {
+		warnings = append(warnings, attachRisk(ctx, o.DepsDev, kept, o.Progress)...)
 	}
 	return &model.Snapshot{Viewer: viewer, GeneratedAt: now, Groups: groups, Warnings: warnings}, nil
 }
@@ -214,4 +223,31 @@ func fetchFailed(refs []model.PRRef, err error) []model.Problem {
 		out = append(out, model.Problem{Code: "fetch_failed", Ref: r.String(), Message: err.Error()})
 	}
 	return out
+}
+
+// attachRisk sets pr.Risk from one deps.dev lookup. A failed lookup is a
+// warning, never an error: risk data is advisory.
+func attachRisk(ctx context.Context, l RiskLookup, prs []*model.PR, progress func(string, ...any)) []model.Problem {
+	keyOf := map[*model.PR]model.DepKey{}
+	var keys []model.DepKey
+	for _, pr := range prs {
+		if k, ok := triage.DepKey(pr); ok {
+			keyOf[pr] = k
+			keys = append(keys, k)
+		}
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+	progress("Checking %d dependencies on deps.dev…", len(keys))
+	risks, err := l.Lookup(ctx, keys)
+	if err != nil {
+		return []model.Problem{{Code: "depsdev_unavailable", Message: "deps.dev lookup failed, so risk data is missing: " + err.Error()}}
+	}
+	for pr, k := range keyOf {
+		if r, ok := risks[k]; ok {
+			pr.Risk = &r
+		}
+	}
+	return nil
 }

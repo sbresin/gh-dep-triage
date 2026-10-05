@@ -3,6 +3,7 @@ package github
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -128,5 +129,15 @@ func TestDecodeIDMergeQueueAndTruncation(t *testing.T) {
 	}
 	if diff := cmp.Diff(wantWarnings, warnings); diff != "" {
 		t.Errorf("warnings (-want +got):\n%s", diff)
+	}
+}
+
+func TestToPRHeadRefName(t *testing.T) {
+	pr, _ := toPR(model.PRRef{Repo: "acme/api", Number: 1}, &rawRepo{PullRequest: &rawPR{HeadRefName: "dependabot/pip/idna-3.20"}})
+	if pr.HeadRefName != "dependabot/pip/idna-3.20" {
+		t.Errorf("HeadRefName = %q", pr.HeadRefName)
+	}
+	if q, _ := buildPRBatchQuery([]model.PRRef{{Repo: "acme/api", Number: 1}}); !strings.Contains(q, "headRefName") {
+		t.Error("PR query must request headRefName")
 	}
 }

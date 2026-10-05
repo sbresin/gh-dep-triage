@@ -198,3 +198,55 @@ func TestLoadEmpty(t *testing.T) {
 		t.Errorf("empty snapshot = %+v", snap)
 	}
 }
+
+type fakeLookup struct {
+	got   []model.DepKey
+	risks map[model.DepKey]model.Risk
+	err   error
+}
+
+func (f *fakeLookup) Lookup(_ context.Context, keys []model.DepKey) (map[model.DepKey]model.Risk, error) {
+	f.got = keys
+	return f.risks, f.err
+}
+
+func riskFake() *githubtest.Fake {
+	f := githubtest.NewFake("octocat")
+	npm := githubtest.NewPR("acme/api", 1, "Bump lodash from 4.17.20 to 4.17.21")
+	npm.HeadRefName = "dependabot/npm_and_yarn/lodash-4.17.21"
+	docker := githubtest.NewPR("acme/api", 2, "Bump node from 20 to 22")
+	docker.HeadRefName = "dependabot/docker/node-22"
+	f.Add(npm, true, false)
+	f.Add(docker, true, false)
+	return f
+}
+
+func TestLoadAttachesRisk(t *testing.T) {
+	key := model.DepKey{System: "NPM", Name: "lodash", Version: "4.17.21"}
+	l := &fakeLookup{risks: map[model.DepKey]model.Risk{key: {System: "NPM", Stars: 61277}}}
+	o := opts()
+	o.DepsDev = l
+	snap, err := Load(context.Background(), riskFake(), o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cmp.Equal(l.got, []model.DepKey{key}) {
+		t.Errorf("lookup keys = %+v", l.got)
+	}
+	npm, docker := snap.Find(model.PRRef{Repo: "acme/api", Number: 1}), snap.Find(model.PRRef{Repo: "acme/api", Number: 2})
+	if npm.Risk == nil || npm.Risk.Stars != 61277 || docker.Risk != nil || len(snap.Warnings) != 0 {
+		t.Errorf("npm risk=%+v docker risk=%+v warnings=%v", npm.Risk, docker.Risk, snap.Warnings)
+	}
+}
+
+func TestLoadRiskFailureIsWarning(t *testing.T) {
+	o := opts()
+	o.DepsDev = &fakeLookup{err: errors.New("deps.dev /versionbatch: 503 Service Unavailable")}
+	snap, err := Load(context.Background(), riskFake(), o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snap.Warnings) != 1 || snap.Warnings[0].Code != "depsdev_unavailable" || snap.Find(model.PRRef{Repo: "acme/api", Number: 1}).Risk != nil {
+		t.Errorf("warnings = %+v", snap.Warnings)
+	}
+}
