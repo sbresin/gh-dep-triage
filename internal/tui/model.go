@@ -25,7 +25,7 @@ type Deps struct {
 	Browse func(url string) error
 	// Rules are the policy rules; the TUI uses hard rules only.
 	Rules policy.Rules
-	// Who is shown in the header, e.g. "user octocat" or "team platform".
+	// Who is shown in the header, e.g. "user octocat" or "team acme/platform".
 	Who string
 }
 

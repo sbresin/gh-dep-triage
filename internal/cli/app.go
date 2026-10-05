@@ -121,8 +121,8 @@ func (a *app) prepare(cmd *cobra.Command) error {
 	if f := cmd.Flag("team"); f != nil && !f.Changed && cfg.Defaults.Team != "" {
 		a.opts.team = cfg.Defaults.Team
 	}
-	if t := a.opts.team; t != "" && (strings.Count(t, "/") != 1 || strings.HasPrefix(t, "/") || strings.HasSuffix(t, "/")) {
-		return &usageError{msg: "--team must be org/team"}
+	if t := a.opts.team; t != "" && (strings.Count(t, "/") != 1 || strings.HasPrefix(t, "/") || strings.HasSuffix(t, "/") || strings.ContainsAny(t, " \t\r\n")) {
+		return &usageError{msg: fmt.Sprintf("--team %q must be org/team (from the flag or defaults.team)", t)}
 	}
 	if f := cmd.Flag("limit"); f != nil && !f.Changed && cfg.Defaults.Limit > 0 {
 		a.opts.limit = cfg.Defaults.Limit

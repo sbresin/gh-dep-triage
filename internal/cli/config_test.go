@@ -36,6 +36,12 @@ func TestBareTeamConfigIsUsageError(t *testing.T) {
 	assertBareTeamRejected(t, "list", "--json")
 }
 
+func TestMalformedTeamIsUsageError(t *testing.T) {
+	for _, team := range []string{"/p", "a/", "/", "a//b", "a/b/c", "acme/x is:closed"} {
+		t.Run(team, func(t *testing.T) { assertBareTeamRejected(t, "list", "--team", team, "--json") })
+	}
+}
+
 func assertBareTeamRejected(t *testing.T, args ...string) {
 	t.Helper()
 	f := sampleFake()
