@@ -30,26 +30,43 @@ func (q *Queue) mutateStep(ctx context.Context, r model.Result, name string, ste
 	return r, true
 }
 
-// botRequest asks the PR's bot to rebase or recreate: the rebase checkbox
-// for Renovate (any PR body that has one), a comment for Dependabot.
-func (q *Queue) botRequest(ctx context.Context, r model.Result, pr *model.PR, action string, step func(string)) model.Result {
-	var fn func(context.Context) error
+type botAskKind int
+
+const (
+	askComment botAskKind = iota + 1
+	askCheckbox
+)
+
+// botAsk decides how to ask pr's bot to rebase or recreate: the rebase
+// checkbox for Renovate (any PR body that has one), a comment for Dependabot.
+func botAsk(r model.Result, pr *model.PR, action string) (botAskKind, model.Result, bool) {
 	// The checkbox decides, not the login: self-hosted Renovate apps have their own.
 	hasBox := strings.Contains(strings.ToLower(pr.Body), "<!-- rebase-check -->")
 	switch bot := policy.NormalizeLogin(pr.Author); {
 	case bot == "dependabot" && !hasBox:
-		fn = func(c context.Context) error { return q.c.Comment(c, pr.ID, "@dependabot "+action) }
+		return askComment, r, false
 	case bot == "renovate" || hasBox:
 		if strings.Contains(strings.ToLower(pr.Body), rebaseChecked) {
-			return finish(r, model.ResultSkipped, model.ReasonAlreadyRequested, "the rebase checkbox is already ticked")
+			return 0, finish(r, model.ResultSkipped, model.ReasonAlreadyRequested, "the rebase checkbox is already ticked"), true
 		}
 		if !strings.Contains(pr.Body, rebaseUnchecked) {
-			return finish(r, model.ResultFailed, model.ReasonNoRebaseCheckbox, "the PR description has no rebase checkbox")
+			return 0, finish(r, model.ResultFailed, model.ReasonNoRebaseCheckbox, "the PR description has no rebase checkbox"), true
 		}
+		return askCheckbox, r, false
+	default:
+		return 0, finish(r, model.ResultFailed, model.ReasonUnsupportedBot, fmt.Sprintf("can't ask %s to %s", pr.Author, action)), true
+	}
+}
+
+func (q *Queue) botRequest(ctx context.Context, r model.Result, pr *model.PR, action string, step func(string)) model.Result {
+	ask, done, stop := botAsk(r, pr, action)
+	if stop {
+		return done
+	}
+	fn := func(c context.Context) error { return q.c.Comment(c, pr.ID, "@dependabot "+action) }
+	if ask == askCheckbox {
 		body := strings.Replace(pr.Body, rebaseUnchecked, rebaseChecked, 1)
 		fn = func(c context.Context) error { return q.c.UpdateBody(c, pr.ID, body) }
-	default:
-		return finish(r, model.ResultFailed, model.ReasonUnsupportedBot, fmt.Sprintf("can't ask %s to %s", pr.Author, action))
 	}
 	r, ok := q.mutateStep(ctx, r, "requesting "+action, step, fn)
 	if !ok {
@@ -62,26 +79,9 @@ func (q *Queue) botRequest(ctx context.Context, r model.Result, pr *model.PR, ac
 // rerun re-runs the failed jobs of every workflow run with a failed check.
 // Failed checks outside GitHub Actions can't be re-run and are named in the message.
 func (q *Queue) rerun(ctx context.Context, r model.Result, pr *model.PR, step func(string)) model.Result {
-	if pr.Checks.Failed == 0 {
-		return finish(r, model.ResultSkipped, model.ReasonNoFailedChecks, "no failing checks")
-	}
-	runs, other, seen := []int64{}, []string{}, map[int64]bool{}
-	for _, c := range pr.CheckRuns {
-		switch {
-		case c.State != model.CheckStateFailed:
-		case c.WorkflowRunID == 0:
-			other = append(other, c.Name)
-		case !seen[c.WorkflowRunID]:
-			seen[c.WorkflowRunID] = true
-			runs = append(runs, c.WorkflowRunID)
-		}
-	}
-	note := ""
-	if len(other) > 0 {
-		note = "not GitHub Actions, re-run manually: " + strings.Join(other, ", ")
-	}
-	if len(runs) == 0 {
-		return finish(r, model.ResultSkipped, model.ReasonNotRerunnable, note)
+	runs, note, done, stop := rerunPlan(r, pr)
+	if stop {
+		return done
 	}
 	for _, id := range runs {
 		var ok bool
@@ -142,4 +142,31 @@ func (q *Queue) closePR(ctx context.Context, r model.Result, pr *model.PR, reaso
 	}
 	r.Steps = append(r.Steps, "closed")
 	return finish(r, model.ResultSuccess, "", "")
+}
+
+// rerunPlan lists the workflow runs with a failed check, plus a note naming
+// failed checks outside GitHub Actions.
+func rerunPlan(r model.Result, pr *model.PR) ([]int64, string, model.Result, bool) {
+	if pr.Checks.Failed == 0 {
+		return nil, "", finish(r, model.ResultSkipped, model.ReasonNoFailedChecks, "no failing checks"), true
+	}
+	runs, other, seen := []int64{}, []string{}, map[int64]bool{}
+	for _, c := range pr.CheckRuns {
+		switch {
+		case c.State != model.CheckStateFailed:
+		case c.WorkflowRunID == 0:
+			other = append(other, c.Name)
+		case !seen[c.WorkflowRunID]:
+			seen[c.WorkflowRunID] = true
+			runs = append(runs, c.WorkflowRunID)
+		}
+	}
+	note := ""
+	if len(other) > 0 {
+		note = "not GitHub Actions, re-run manually: " + strings.Join(other, ", ")
+	}
+	if len(runs) == 0 {
+		return nil, note, finish(r, model.ResultSkipped, model.ReasonNotRerunnable, note), true
+	}
+	return runs, note, r, false
 }

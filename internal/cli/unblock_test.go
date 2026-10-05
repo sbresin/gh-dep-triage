@@ -29,13 +29,14 @@ func TestUnblockDryRuns(t *testing.T) {
 	}{
 		{[]string{"rebase", "acme/api#3"}, "acme/api#3 planned", ExitOK},
 		{[]string{"recreate", "acme/api#3"}, "acme/api#3 planned", ExitOK},
-		{[]string{"rerun", "acme/web#2"}, "acme/web#2 planned", ExitOK},
+		{[]string{"rerun", "acme/web#2"}, "acme/web#2 skipped not_rerunnable", ExitOK},
 		{[]string{"request-review", "acme/api#1", "--reviewer", "alice"}, "acme/api#1 planned", ExitOK},
 		{[]string{"close", "acme/api#3", "--reason", "superseded"}, "acme/api#3 denied blocker_missing", ExitDenied},
 	}
 	for _, tt := range tests {
 		t.Run(tt.args[0], func(t *testing.T) {
 			f := sampleFake()
+			f.PRs["acme/api#3"].Body = renovateBody
 			code, out, _ := runApp(t, testApp(f), append(tt.args, "--json")...)
 			e := decodeResults(t, out)
 			if diff := cmp.Diff([]string{tt.want}, summary(e.Data.Results)); diff != "" || code != tt.code || !e.DryRun || len(f.Calls) != 0 {
@@ -106,6 +107,7 @@ func TestUnblockArgErrors(t *testing.T) {
 
 func TestApplyUnblockActions(t *testing.T) {
 	f := supersededFake()
+	f.PRs["acme/api#3"].Body = renovateBody
 	a := testApp(f)
 	a.stdin = strings.NewReader(`[{"action":"close","ref":"acme/api#1","args":{"reason":"superseded"}},{"action":"rebase","ref":"acme/api#3"}]`)
 	code, out, _ := runApp(t, a, "apply", "--plan", "-", "--json")

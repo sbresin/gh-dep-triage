@@ -13,7 +13,9 @@
           "reviewer": "acme/platform"
         },
         "status": "planned",
-        "steps": [],
+        "steps": [
+          "request review from acme/platform"
+        ],
         "headOid": "sha1"
       }
     ],

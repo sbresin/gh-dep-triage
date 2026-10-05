@@ -87,8 +87,7 @@ func (a *app) runPlan(cmd *cobra.Command, name string, items []plan.Item, mo mut
 			continue
 		}
 		if !mo.yes {
-			r.Status = model.ResultPlanned
-			results[i] = r
+			results[i] = executor.Preview(t.Action, t.PR, t.Args)
 			continue
 		}
 		run = append(run, t)

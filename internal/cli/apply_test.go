@@ -69,9 +69,8 @@ func TestApplyHonoursAllowMajor(t *testing.T) {
 	a := testApp(sampleFake())
 	a.stdin = strings.NewReader(`[{"action":"merge","ref":"acme/api#4"}]`)
 	_, out, _ := runApp(t, a, "apply", "--plan", "-", "--allow-major", "--json")
-	got := decodeResults(t, out).Data.Results
-	if len(got) != 1 || got[0].Status != model.ResultPlanned {
-		t.Errorf("results = %+v", got)
+	if got := summary(decodeResults(t, out).Data.Results); !cmp.Equal(got, []string{"acme/api#4 skipped already_merging"}) {
+		t.Errorf("with --allow-major: results = %v", got)
 	}
 
 	a = testApp(sampleFake())

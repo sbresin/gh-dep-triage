@@ -79,8 +79,8 @@ func (q *Queue) mutate(ctx context.Context, fn func(context.Context) error) erro
 }
 
 func (q *Queue) approve(ctx context.Context, r model.Result, pr *model.PR, step func(string)) model.Result {
-	if pr.ViewerApproved {
-		return finish(r, model.ResultSkipped, model.ReasonAlreadyApproved, "")
+	if done, stop := approveCheck(r, pr); stop {
+		return done
 	}
 	step("approving")
 	if ctx.Err() != nil {
@@ -109,19 +109,9 @@ func MergeMethod(s model.RepoSettings) string {
 }
 
 func (q *Queue) merge(ctx context.Context, r model.Result, pr *model.PR, step func(string)) model.Result {
-	if pr.AutoMerge {
-		return finish(r, model.ResultSkipped, model.ReasonAlreadyMerging, "auto-merge is already enabled")
-	}
-	if pr.MergeQueue {
-		return finish(r, model.ResultSkipped, model.ReasonMergeQueue, "the base branch uses a merge queue, which is not supported")
-	}
-	// Don't approve when the merge would certainly be skipped. BLOCKED is not
-	// pre-skipped: the approval may unblock it.
-	if pr.MergeStateStatus == "DIRTY" {
-		return finish(r, model.ResultSkipped, model.ReasonNotMergeable, "merge conflicts with "+pr.BaseRef)
-	}
-	if MergeMethod(pr.RepoSettings) == "" {
-		return finish(r, model.ResultSkipped, model.ReasonNoMergeMethod, "the repo allows no merge method")
+	// Don't approve when the merge would certainly be skipped.
+	if done, stop := mergeCheck(r, pr); stop {
+		return done
 	}
 	cur := pr
 	refetch := pr.MergeStateStatus == "UNKNOWN"
@@ -164,8 +154,11 @@ func (q *Queue) merge(ctx context.Context, r model.Result, pr *model.PR, step fu
 		return finish(r, model.ResultSkipped, model.ReasonNoMergeMethod, "the repo allows no merge method")
 	}
 	label := strings.ToLower(method)
-	switch {
-	case cur.MergeStateStatus == "CLEAN" || cur.MergeStateStatus == "HAS_HOOKS":
+	kind, done, stop := finalMerge(r, cur)
+	if stop {
+		return done
+	}
+	if kind == mergeDirect {
 		step("merging")
 		if ctx.Err() != nil {
 			return finish(r, model.ResultSkipped, model.ReasonCancelled, "cancelled before merging")
@@ -174,9 +167,7 @@ func (q *Queue) merge(ctx context.Context, r model.Result, pr *model.PR, step fu
 			return finish(r, model.ResultFailed, model.ReasonMutationFailed, err.Error())
 		}
 		r.Steps = append(r.Steps, "merged ("+label+")")
-	case cur.MergeStateStatus == "DIRTY":
-		return finish(r, model.ResultSkipped, model.ReasonNotMergeable, "merge conflicts with "+cur.BaseRef)
-	case cur.RepoSettings.AutoMergeAllowed:
+	} else {
 		step("enabling auto-merge")
 		if ctx.Err() != nil {
 			return finish(r, model.ResultSkipped, model.ReasonCancelled, "cancelled before merging")
@@ -185,9 +176,6 @@ func (q *Queue) merge(ctx context.Context, r model.Result, pr *model.PR, step fu
 			return finish(r, model.ResultFailed, model.ReasonMutationFailed, err.Error())
 		}
 		r.Steps = append(r.Steps, "auto-merge enabled ("+label+")")
-	default:
-		return finish(r, model.ResultSkipped, model.ReasonNotMergeable,
-			fmt.Sprintf("merge state is %s and auto-merge is not allowed in this repo", cur.MergeStateStatus))
 	}
 	return finish(r, model.ResultSuccess, "", "")
 }
@@ -222,5 +210,51 @@ func (q *Queue) refetch(ctx context.Context, pr *model.PR) (*model.PR, error) {
 		if err := q.o.Sleep(ctx, q.o.PollInterval); err != nil {
 			return nil, err
 		}
+	}
+}
+
+// approveCheck stops an approve that has nothing to do.
+func approveCheck(r model.Result, pr *model.PR) (model.Result, bool) {
+	if pr.ViewerApproved {
+		return finish(r, model.ResultSkipped, model.ReasonAlreadyApproved, ""), true
+	}
+	return r, false
+}
+
+// mergeCheck stops a merge before any mutation when the outcome is already
+// certain. BLOCKED is not stopped: the approval may unblock it.
+func mergeCheck(r model.Result, pr *model.PR) (model.Result, bool) {
+	switch {
+	case pr.AutoMerge:
+		return finish(r, model.ResultSkipped, model.ReasonAlreadyMerging, "auto-merge is already enabled"), true
+	case pr.MergeQueue:
+		return finish(r, model.ResultSkipped, model.ReasonMergeQueue, "the base branch uses a merge queue, which is not supported"), true
+	case pr.MergeStateStatus == "DIRTY":
+		return finish(r, model.ResultSkipped, model.ReasonNotMergeable, "merge conflicts with "+pr.BaseRef), true
+	case MergeMethod(pr.RepoSettings) == "":
+		return finish(r, model.ResultSkipped, model.ReasonNoMergeMethod, "the repo allows no merge method"), true
+	}
+	return r, false
+}
+
+type mergeKind int
+
+const (
+	mergeDirect mergeKind = iota + 1
+	mergeAuto
+)
+
+// finalMerge picks how to merge cur in its current state.
+func finalMerge(r model.Result, cur *model.PR) (mergeKind, model.Result, bool) {
+	switch {
+	case cur.MergeStateStatus == "CLEAN" || cur.MergeStateStatus == "HAS_HOOKS":
+		return mergeDirect, r, false
+	case cur.MergeStateStatus == "DIRTY":
+		return 0, finish(r, model.ResultSkipped, model.ReasonNotMergeable, "merge conflicts with "+cur.BaseRef), true
+	case cur.RepoSettings.AutoMergeAllowed:
+		return mergeAuto, r, false
+	default:
+		return 0, finish(r, model.ResultSkipped, model.ReasonNotMergeable,
+			fmt.Sprintf("merge state is %s and auto-merge is not allowed in this repo", cur.MergeStateStatus)), true
 	}
 }

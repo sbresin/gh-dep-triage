@@ -222,3 +222,11 @@ func TestYesCtrlCMidRunExitsPartial(t *testing.T) {
 		t.Errorf("code=%d stderr=%q", code, errOut)
 	}
 }
+
+func TestDryRunShowsSteps(t *testing.T) {
+	_, out, _ := runApp(t, testApp(sampleFake()), "merge", "acme/api#1", "--json")
+	want := []string{"approve", "merge (squash) if clean, else enable auto-merge (squash)"}
+	if got := decodeResults(t, out).Data.Results[0].Steps; !cmp.Equal(got, want) {
+		t.Errorf("steps = %v, want %v", got, want)
+	}
+}

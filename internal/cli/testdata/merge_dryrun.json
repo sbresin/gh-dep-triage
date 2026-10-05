@@ -10,7 +10,10 @@
         "action": "merge",
         "ref": "acme/api#1",
         "status": "planned",
-        "steps": [],
+        "steps": [
+          "approve",
+          "merge (squash) if clean, else enable auto-merge (squash)"
+        ],
         "headOid": "sha1"
       },
       {
