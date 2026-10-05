@@ -198,6 +198,11 @@ func (a *app) rootCmd() *cobra.Command {
 	root.AddCommand(a.showCmd())
 	root.AddCommand(a.mutateCmd(model.ActionApprove, "Approve dependency PRs (dry run unless --yes)"))
 	root.AddCommand(a.mutateCmd(model.ActionMerge, "Approve if needed, then merge or enable auto-merge (dry run unless --yes)"))
+	root.AddCommand(a.mutateCmd(model.ActionRebase, "Ask the bot to rebase (dry run unless --yes)"))
+	root.AddCommand(a.mutateCmd(model.ActionRecreate, "Ask the bot to recreate the PR (dry run unless --yes)"))
+	root.AddCommand(a.mutateCmd(model.ActionRerun, "Re-run failed GitHub Actions jobs (dry run unless --yes)"))
+	root.AddCommand(a.mutateCmd(model.ActionRequestReview, "Request a review from a user or org/team (dry run unless --yes)"))
+	root.AddCommand(a.mutateCmd(model.ActionClose, "Comment and close superseded or stale PRs (dry run unless --yes)"))
 	root.AddCommand(a.applyCmd())
 	return root
 }

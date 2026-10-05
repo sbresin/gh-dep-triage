@@ -66,6 +66,14 @@ func anyCancelled(rs []model.Result) bool {
 	return false
 }
 
+// actionLabel is the action plus its arg, e.g. "close (superseded)".
+func actionLabel(r model.Result) string {
+	for _, v := range r.Args { // each action takes at most one arg
+		return r.Action + " (" + sanitize(v) + ")"
+	}
+	return r.Action
+}
+
 func resultDetail(r model.Result) string {
 	if r.Message != "" {
 		return r.Message
@@ -77,7 +85,7 @@ func writeResults(w io.Writer, rs []model.Result, dryRun bool) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, "STATUS\tACTION\tREF\tREASON\tDETAIL")
 	for _, r := range rs {
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", r.Status, r.Action, sanitize(r.Ref), dash(r.Reason), sanitize(dash(resultDetail(r))))
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", r.Status, actionLabel(r), sanitize(r.Ref), dash(r.Reason), sanitize(dash(resultDetail(r))))
 	}
 	tw.Flush()
 	c := countResults(rs)

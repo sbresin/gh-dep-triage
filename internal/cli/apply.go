@@ -8,14 +8,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var applyActions = map[string]bool{model.ActionApprove: true, model.ActionMerge: true}
+var applyActions = map[string]bool{
+	model.ActionApprove: true, model.ActionMerge: true, model.ActionRebase: true, model.ActionRecreate: true,
+	model.ActionRerun: true, model.ActionRequestReview: true, model.ActionClose: true,
+}
 
 func (a *app) applyCmd() *cobra.Command {
 	var mo mutateOpts
 	var file string
 	cmd := &cobra.Command{
 		Use:   "apply --plan <file|->",
-		Short: "Execute a JSON plan of approve/merge items (dry run unless --yes)",
+		Short: "Execute a JSON plan of action items (dry run unless --yes)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := output{command: "apply", dryRun: !mo.yes}
 			if len(args) > 0 {

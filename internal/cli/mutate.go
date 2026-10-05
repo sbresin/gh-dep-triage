@@ -20,19 +20,37 @@ type mutateOpts struct {
 
 func (a *app) mutateCmd(action, short string) *cobra.Command {
 	var mo mutateOpts
+	var reviewer, reason string
 	cmd := &cobra.Command{
 		Use:   action + " <refs...>",
 		Short: short,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 {
-				return a.emit(output{command: action, dryRun: !mo.yes},
-					&usageError{msg: action + " takes at least one ref (owner/repo#123 or group:<package>@<target>)"})
+		RunE: func(cmd *cobra.Command, refs []string) error {
+			out := output{command: action, dryRun: !mo.yes}
+			if len(refs) == 0 {
+				return a.emit(out, &usageError{msg: action + " takes at least one ref (owner/repo#123 or group:<package>@<target>)"})
 			}
-			return a.runPlan(cmd, action, plan.Items(action, args, nil), mo)
+			var args map[string]string
+			switch action {
+			case model.ActionRequestReview:
+				args = map[string]string{"reviewer": reviewer}
+			case model.ActionClose:
+				args = map[string]string{"reason": reason}
+			}
+			if err := plan.CheckArgs(action, args); err != nil {
+				return a.emit(out, err)
+			}
+			return a.runPlan(cmd, action, plan.Items(action, refs, args), mo)
 		},
 	}
 	cmd.Flags().BoolVar(&mo.yes, "yes", false, "execute the plan (default is a dry run)")
-	cmd.Flags().BoolVar(&mo.allowMajor, "allow-major", false, "allow major version bumps")
+	switch action {
+	case model.ActionApprove, model.ActionMerge:
+		cmd.Flags().BoolVar(&mo.allowMajor, "allow-major", false, "allow major version bumps")
+	case model.ActionRequestReview:
+		cmd.Flags().StringVar(&reviewer, "reviewer", "", "user login or org/team to request a review from")
+	case model.ActionClose:
+		cmd.Flags().StringVar(&reason, "reason", "", "why: superseded or stale (the PR must have that blocker)")
+	}
 	return cmd
 }
 
@@ -63,7 +81,7 @@ func (a *app) runPlan(cmd *cobra.Command, name string, items []plan.Item, mo mut
 			results[i] = *t.Result
 			continue
 		}
-		r := model.Result{Action: t.Action, Ref: t.PR.Ref, HeadOid: t.PR.HeadOid, Steps: []string{}}
+		r := model.Result{Action: t.Action, Ref: t.PR.Ref, Args: t.Args, HeadOid: t.PR.HeadOid, Steps: []string{}}
 		if v := policy.Evaluate(t.Action, t.PR, t.Args, rules); !v.Allow {
 			r.Status, r.Reason, r.Message = model.ResultDenied, v.Reason, v.Message
 			results[i] = r
@@ -123,5 +141,5 @@ func (a *app) runQueue(ctx context.Context, client github.Client, viewer string,
 }
 
 func (a *app) progressResult(r model.Result) {
-	fmt.Fprintf(a.stderr, "%s %s %s: %s\n", r.Status, r.Action, sanitize(r.Ref), sanitize(dash(resultDetail(r))))
+	fmt.Fprintf(a.stderr, "%s %s %s: %s\n", r.Status, actionLabel(r), sanitize(r.Ref), sanitize(dash(resultDetail(r))))
 }

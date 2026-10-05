@@ -50,7 +50,7 @@ func TestApplyErrors(t *testing.T) {
 		"missing --plan":     {[]string{"apply", "--json"}, `[{"action":"approve","ref":"acme/api#3"}]`, "is required"},
 		"positional args":    {[]string{"apply", "acme/api#1", "--plan", "-", "--json"}, "[]", "takes no arguments"},
 		"bad json":           {[]string{"apply", "--plan", "-", "--json"}, "nope", "JSON array"},
-		"unsupported action": {[]string{"apply", "--plan", "-", "--json"}, `[{"action":"rebase","ref":"acme/api#1"}]`, "rebase"},
+		"unsupported action": {[]string{"apply", "--plan", "-", "--json"}, `[{"action":"squash","ref":"acme/api#1"}]`, "squash"},
 		"missing file":       {[]string{"apply", "--plan", "/nonexistent/plan.json", "--json"}, "", "no such file"},
 	}
 	for name, tt := range tests {
