@@ -35,6 +35,7 @@ under guardrails.
 - ⚡ **Fast.** Batched, parallel GraphQL loads around 200 PRs in seconds.
 - 📦 **Grouped.** One row per `package@version` across all repos, labelled patch, minor or major.
 - 🩺 **Diagnosed.** Each PR is marked `ready`, `merging` or `blocked` with a reason (failing checks, behind base, conflicts, superseded, stale, …).
+- 🔎 **Risk-aware.** Stars, the OpenSSF Scorecard and supply-chain findings (malicious, brand-new release, typosquat, deprecated) for each dependency, from [deps.dev](https://deps.dev).
 - 🧰 **Unblocks.** Asks the bot to rebase or recreate, re-runs flaky jobs, requests reviews, closes superseded PRs.
 - 🛡️ **Guarded.** It never merges with a failing check, never uses an admin bypass, pins every action to the commit you looked at, and treats major bumps as opt-in.
 - 🤖 **Agent-ready.** Every command has `--json` output, a stable schema and dry runs by default, and an agent skill ships inside the binary.
@@ -78,6 +79,7 @@ Every mutating command is a **dry run unless you pass `--yes`**.
 
 ```sh
 gh dep-triage list --json                        # snapshot: groups, PRs, blockers, suggested commands
+gh dep-triage list --status ready --bump patch,minor  # just the easy ones, one line per PR
 gh dep-triage show acme/api#12 --logs            # body, release notes, files, failed-job logs
 
 gh dep-triage merge group:lodash@4.17.21         # dry run: what would happen?
@@ -112,6 +114,7 @@ These **hard rules** always apply, in the TUI and on the CLI:
 
 - Never merge or enable auto-merge while any check is failing.
 - Never use admin or bypass merges.
+- Never approve or merge a version that deps.dev flags as malicious.
 - Every mutation passes the head commit it was evaluated against. If the branch has moved, the item fails with `head_changed`.
 - Only PRs authored by the configured bots are touched.
 
@@ -136,6 +139,8 @@ defaults:
   team: acme/platform
   limit: 200
 ```
+
+`list`, `show` and the TUI send each dependency's name and version to [deps.dev](https://deps.dev) to look up risk data. If deps.dev is unreachable, the tool shows a warning and leaves the risk data out.
 
 ## Development
 
