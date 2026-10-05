@@ -98,8 +98,8 @@ func TestTUIReloadIsQuiet(t *testing.T) {
 
 func TestRootTUITeamAndExitCode(t *testing.T) {
 	a, calls := tuiApp(sampleFake(), 130)
-	code, _, _ := runApp(t, a, "--team", "platform")
-	if code != 130 || (*calls)[0].deps.Who != "team platform" {
+	code, _, _ := runApp(t, a, "--team", "acme/platform")
+	if code != 130 || (*calls)[0].deps.Who != "team acme/platform" {
 		t.Errorf("code=%d who=%q", code, (*calls)[0].deps.Who)
 	}
 }

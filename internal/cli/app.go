@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
 	"github.com/cli/go-gh/v2/pkg/term"
@@ -120,6 +121,9 @@ func (a *app) prepare(cmd *cobra.Command) error {
 	if f := cmd.Flag("team"); f != nil && !f.Changed && cfg.Defaults.Team != "" {
 		a.opts.team = cfg.Defaults.Team
 	}
+	if t := a.opts.team; t != "" && (strings.Count(t, "/") != 1 || strings.HasPrefix(t, "/") || strings.HasSuffix(t, "/")) {
+		return &usageError{msg: "--team must be org/team"}
+	}
 	if f := cmd.Flag("limit"); f != nil && !f.Changed && cfg.Defaults.Limit > 0 {
 		a.opts.limit = cfg.Defaults.Limit
 	}
@@ -180,7 +184,7 @@ func (a *app) rootCmd() *cobra.Command {
 	f := root.PersistentFlags()
 	f.IntVar(&a.opts.limit, "limit", 200, "maximum results per search")
 	f.IntVar(&a.opts.workers, "workers", 16, "parallel GraphQL requests while loading")
-	f.StringVar(&a.opts.team, "team", "", "use review requests for a team (team or org/team) instead of you")
+	f.StringVar(&a.opts.team, "team", "", "use review requests for a team (org/team) instead of you")
 	f.BoolVar(&a.opts.json, "json", false, "print a JSON envelope on stdout")
 	f.StringVar(&a.opts.config, "config", "", "config file (default $XDG_CONFIG_HOME/gh-dep-triage/config.yml)")
 	root.RunE = func(cmd *cobra.Command, _ []string) error {

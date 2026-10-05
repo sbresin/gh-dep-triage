@@ -179,7 +179,7 @@ func TestLoadCancelledReturnsError(t *testing.T) {
 func TestLoadTeamQuery(t *testing.T) {
 	f := githubtest.NewFake("octocat")
 	o := opts()
-	o.Team = "platform"
+	o.Team = "acme/platform"
 	if _, err := Load(context.Background(), f, o); err != nil {
 		t.Fatal(err)
 	}

@@ -18,7 +18,7 @@ func TestSearchQueries(t *testing.T) {
 	if want := base + " reviewed-by:@me " + authors; rev != want {
 		t.Errorf("reviewed = %q, want %q", rev, want)
 	}
-	if req, _ := SearchQueries("platform", bots); !strings.Contains(req, "team-review-requested:acme/platform") {
+	if req, _ := SearchQueries("acme/platform", bots); !strings.Contains(req, "team-review-requested:acme/platform") {
 		t.Errorf("team query = %q", req)
 	}
 	if req, _ := SearchQueries("other/team", bots); !strings.Contains(req, "team-review-requested:other/team") {

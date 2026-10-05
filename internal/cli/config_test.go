@@ -7,7 +7,7 @@ import (
 )
 
 func TestConfigDefaultTeam(t *testing.T) {
-	writeConfig(t, "defaults:\n  team: platform\n")
+	writeConfig(t, "defaults:\n  team: acme/platform\n")
 	f := sampleFake()
 	if code, _, _ := runApp(t, testApp(f), "list", "--json"); code != ExitOK {
 		t.Fatalf("exit %d", code)
@@ -18,12 +18,31 @@ func TestConfigDefaultTeam(t *testing.T) {
 }
 
 func TestFlagOverridesConfigTeam(t *testing.T) {
-	writeConfig(t, "defaults:\n  team: platform\n")
+	writeConfig(t, "defaults:\n  team: acme/platform\n")
 	f := sampleFake()
 	runApp(t, testApp(f), "list", "--team", "other/team", "--json")
 	joined := strings.Join(f.Queries, "\n")
 	if !strings.Contains(joined, "team-review-requested:other/team") || strings.Contains(joined, "platform") {
 		t.Errorf("queries = %v", f.Queries)
+	}
+}
+
+func TestBareTeamFlagIsUsageError(t *testing.T) {
+	assertBareTeamRejected(t, "list", "--team", "platform", "--json")
+}
+
+func TestBareTeamConfigIsUsageError(t *testing.T) {
+	writeConfig(t, "defaults:\n  team: platform\n")
+	assertBareTeamRejected(t, "list", "--json")
+}
+
+func assertBareTeamRejected(t *testing.T, args ...string) {
+	t.Helper()
+	f := sampleFake()
+	code, out, _ := runApp(t, testApp(f), args...)
+	e := decodeEnvelope(t, out)
+	if code != ExitError || len(e.Errors) != 1 || e.Errors[0].Code != "invalid_argument" || len(f.Queries) != 0 {
+		t.Errorf("code=%d errors=%+v queries=%v", code, e.Errors, f.Queries)
 	}
 }
 

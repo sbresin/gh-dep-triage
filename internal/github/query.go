@@ -20,9 +20,6 @@ func SearchQueries(team string, bots []string) (requested, reviewed string) {
 	a := strings.Join(authors, " ")
 	req := "review-requested:@me"
 	if team != "" {
-		if !strings.Contains(team, "/") {
-			team = "acme/" + team
-		}
 		req = "team-review-requested:" + team
 	}
 	return searchBase + " " + req + " " + a, searchBase + " reviewed-by:@me " + a
