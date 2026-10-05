@@ -23,6 +23,7 @@ type Fake struct {
 	FailOnce     map[string]error // like FailBatch, but only for the first batch containing this ref
 	MutationErr  map[string]error
 	AfterApprove map[string]func(*model.PR)
+	Reviewers    map[string]string // reviewer → node ID; "T_" IDs are teams
 
 	mu      sync.Mutex
 	Queries []string
@@ -35,7 +36,7 @@ var _ github.Client = (*Fake)(nil)
 func NewFake(viewer string) *Fake {
 	return &Fake{ViewerLogin: viewer, PRs: map[string]*model.PR{}, Files: map[string][]model.ChangedFile{},
 		Logs: map[int64]string{}, FailBatch: map[string]error{}, FailOnce: map[string]error{},
-		MutationErr: map[string]error{}, AfterApprove: map[string]func(*model.PR){}}
+		MutationErr: map[string]error{}, AfterApprove: map[string]func(*model.PR){}, Reviewers: map[string]string{}}
 }
 
 // NewPR returns a raw (not enriched) open Dependabot PR created 2026-09-25.
@@ -184,5 +185,59 @@ func (f *Fake) EnableAutoMerge(_ context.Context, prID, headOid, method string) 
 		return err
 	}
 	pr.AutoMerge = true
+	return nil
+}
+
+func (f *Fake) Comment(_ context.Context, prID, body string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	_, err := f.mutation("comment", prID, body)
+	return err
+}
+
+func (f *Fake) UpdateBody(_ context.Context, prID, body string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	pr, err := f.mutation("body", prID)
+	if err != nil {
+		return err
+	}
+	pr.Body = body
+	return nil
+}
+
+func (f *Fake) RerunFailedJobs(_ context.Context, repo string, runID int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	call := fmt.Sprintf("rerun %s %d", repo, runID)
+	f.Calls = append(f.Calls, call)
+	return f.MutationErr[call]
+}
+
+func (f *Fake) ReviewerID(_ context.Context, reviewer string) (string, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	id, ok := f.Reviewers[reviewer]
+	if !ok {
+		return "", false, fmt.Errorf("%w: %s", github.ErrReviewerNotFound, reviewer)
+	}
+	return id, strings.HasPrefix(id, "T_"), nil
+}
+
+func (f *Fake) RequestReviews(_ context.Context, prID string, userIDs, teamIDs []string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	_, err := f.mutation("request-review", prID, strings.Join(append(append([]string{}, userIDs...), teamIDs...), ","))
+	return err
+}
+
+func (f *Fake) Close(_ context.Context, prID string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	pr, err := f.mutation("close", prID)
+	if err != nil {
+		return err
+	}
+	pr.State = "CLOSED"
 	return nil
 }

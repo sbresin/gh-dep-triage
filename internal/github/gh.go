@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/cli/go-gh/v2/pkg/auth"
@@ -127,6 +128,12 @@ const (
 	approveMutation   = `mutation($id: ID!, $oid: GitObjectID!) { addPullRequestReview(input: {pullRequestId: $id, commitOID: $oid, event: APPROVE}) { pullRequestReview { id } } }`
 	mergeMutation     = `mutation($id: ID!, $oid: GitObjectID!, $method: PullRequestMergeMethod!) { mergePullRequest(input: {pullRequestId: $id, expectedHeadOid: $oid, mergeMethod: $method}) { pullRequest { merged } } }`
 	autoMergeMutation = `mutation($id: ID!, $oid: GitObjectID!, $method: PullRequestMergeMethod!) { enablePullRequestAutoMerge(input: {pullRequestId: $id, expectedHeadOid: $oid, mergeMethod: $method}) { pullRequest { autoMergeRequest { enabledAt } } } }`
+	commentMutation   = `mutation($id: ID!, $body: String!) { addComment(input: {subjectId: $id, body: $body}) { clientMutationId } }`
+	bodyMutation      = `mutation($id: ID!, $body: String!) { updatePullRequest(input: {pullRequestId: $id, body: $body}) { pullRequest { id } } }`
+	reviewsMutation   = `mutation($id: ID!, $users: [ID!], $teams: [ID!]) { requestReviews(input: {pullRequestId: $id, userIds: $users, teamIds: $teams, union: true}) { pullRequest { id } } }`
+	closeMutation     = `mutation($id: ID!) { closePullRequest(input: {pullRequestId: $id}) { pullRequest { state } } }`
+	userIDQuery       = `query($login: String!) { user(login: $login) { id } }`
+	teamIDQuery       = `query($org: String!, $slug: String!) { organization(login: $org) { team(slug: $slug) { id } } }`
 )
 
 func (c *GH) mutate(ctx context.Context, query string, vars map[string]any) error {
@@ -144,4 +151,64 @@ func (c *GH) Merge(ctx context.Context, prID, headOid, method string) error {
 
 func (c *GH) EnableAutoMerge(ctx context.Context, prID, headOid, method string) error {
 	return c.mutate(ctx, autoMergeMutation, map[string]any{"id": prID, "oid": headOid, "method": method})
+}
+
+func (c *GH) Comment(ctx context.Context, prID, body string) error {
+	return c.mutate(ctx, commentMutation, map[string]any{"id": prID, "body": body})
+}
+
+func (c *GH) UpdateBody(ctx context.Context, prID, body string) error {
+	return c.mutate(ctx, bodyMutation, map[string]any{"id": prID, "body": body})
+}
+
+func (c *GH) Close(ctx context.Context, prID string) error {
+	return c.mutate(ctx, closeMutation, map[string]any{"id": prID})
+}
+
+func (c *GH) RequestReviews(ctx context.Context, prID string, userIDs, teamIDs []string) error {
+	return c.mutate(ctx, reviewsMutation, map[string]any{"id": prID, "users": userIDs, "teams": teamIDs})
+}
+
+func (c *GH) RerunFailedJobs(ctx context.Context, repo string, runID int64) error {
+	resp, err := c.rest.RequestWithContext(ctx, http.MethodPost, fmt.Sprintf("repos/%s/actions/runs/%d/rerun-failed-jobs", repo, runID), nil)
+	if err != nil {
+		return err
+	}
+	return resp.Body.Close()
+}
+
+func (c *GH) ReviewerID(ctx context.Context, reviewer string) (string, bool, error) {
+	if org, slug, ok := strings.Cut(reviewer, "/"); ok {
+		var resp struct {
+			Organization *struct{ Team *struct{ ID string } }
+		}
+		if err := c.gql.DoWithContext(ctx, teamIDQuery, map[string]any{"org": org, "slug": slug}, &resp); err != nil {
+			return "", true, notFound(err)
+		}
+		if resp.Organization == nil || resp.Organization.Team == nil {
+			return "", true, fmt.Errorf("%w: team %s", ErrReviewerNotFound, reviewer)
+		}
+		return resp.Organization.Team.ID, true, nil
+	}
+	var resp struct{ User *struct{ ID string } }
+	if err := c.gql.DoWithContext(ctx, userIDQuery, map[string]any{"login": reviewer}, &resp); err != nil {
+		return "", false, notFound(err)
+	}
+	if resp.User == nil {
+		return "", false, fmt.Errorf("%w: user %s", ErrReviewerNotFound, reviewer)
+	}
+	return resp.User.ID, false, nil
+}
+
+// notFound maps a GraphQL NOT_FOUND error to ErrReviewerNotFound.
+func notFound(err error) error {
+	var gqlErr *api.GraphQLError
+	if errors.As(err, &gqlErr) {
+		for _, e := range gqlErr.Errors {
+			if e.Type == "NOT_FOUND" {
+				return fmt.Errorf("%w: %s", ErrReviewerNotFound, e.Message)
+			}
+		}
+	}
+	return err
 }

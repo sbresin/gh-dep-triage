@@ -10,6 +10,9 @@ import (
 
 var ErrNotAuthenticated = errors.New("not authenticated with GitHub; run `gh auth login`")
 
+// ErrReviewerNotFound is returned by ReviewerID for an unknown user or team.
+var ErrReviewerNotFound = errors.New("reviewer not found")
+
 type SearchHit struct {
 	Repo        string
 	Number      int
@@ -34,4 +37,17 @@ type Client interface {
 	Merge(ctx context.Context, prID, headOid, method string) error
 	// EnableAutoMerge turns on auto-merge pinned to headOid.
 	EnableAutoMerge(ctx context.Context, prID, headOid, method string) error
+	// Comment adds a comment to the PR.
+	Comment(ctx context.Context, prID, body string) error
+	// UpdateBody replaces the PR description.
+	UpdateBody(ctx context.Context, prID, body string) error
+	// RerunFailedJobs re-runs the failed jobs of one Actions workflow run.
+	RerunFailedJobs(ctx context.Context, repo string, runID int64) error
+	// ReviewerID resolves a user login or org/team to a node ID; team
+	// reports which. Unknown reviewers give ErrReviewerNotFound.
+	ReviewerID(ctx context.Context, reviewer string) (id string, team bool, err error)
+	// RequestReviews adds review requests, keeping the existing ones.
+	RequestReviews(ctx context.Context, prID string, userIDs, teamIDs []string) error
+	// Close closes the PR without merging.
+	Close(ctx context.Context, prID string) error
 }
