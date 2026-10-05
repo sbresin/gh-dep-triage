@@ -3,6 +3,7 @@ package model
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 )
@@ -261,3 +262,24 @@ type Result struct {
 	Steps   []string          `json:"steps"`
 	HeadOid string            `json:"headOid,omitempty"`
 }
+
+// DepKey identifies a package version on deps.dev. System "" with Name
+// "github.com/<owner>/<repo>" is a project-only lookup (GitHub Actions).
+type DepKey struct{ System, Name, Version string }
+
+// FindingMalicious is the deps.dev finding that blocks approve and merge.
+const FindingMalicious = "MALICIOUS"
+
+// Risk is deps.dev data about a PR's target version and its source project.
+type Risk struct {
+	System      string    `json:"system,omitempty"`
+	SourceRepo  string    `json:"sourceRepo,omitempty"`
+	Stars       int       `json:"stars,omitempty"`
+	Scorecard   float64   `json:"scorecard,omitempty"`
+	PublishedAt time.Time `json:"publishedAt,omitzero"`
+	Deprecated  bool      `json:"deprecated,omitempty"`
+	Advisories  []string  `json:"advisories,omitempty"`
+	Findings    []string  `json:"findings,omitempty"`
+}
+
+func (r *Risk) HasFinding(t string) bool { return r != nil && slices.Contains(r.Findings, t) }
