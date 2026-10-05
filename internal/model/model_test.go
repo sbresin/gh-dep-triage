@@ -44,3 +44,21 @@ func TestPRJSONHidesInternalFields(t *testing.T) {
 		t.Errorf("headOid = %v", m["headOid"])
 	}
 }
+
+func TestRiskLabel(t *testing.T) {
+	tests := []struct {
+		risk *Risk
+		want string
+	}{
+		{nil, ""},
+		{&Risk{System: "NPM"}, ""},
+		{&Risk{Stars: 61277, Scorecard: 7.5}, "61k★ 7.5"},
+		{&Risk{Stars: 420}, "420★"},
+		{&Risk{Stars: 61277, Findings: []string{"COOLDOWN", "DEPRECATED"}}, "COOLDOWN"},
+	}
+	for _, tt := range tests {
+		if got := tt.risk.Label(); got != tt.want {
+			t.Errorf("Label(%+v) = %q, want %q", tt.risk, got, tt.want)
+		}
+	}
+}

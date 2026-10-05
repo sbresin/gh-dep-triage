@@ -4,6 +4,7 @@ package model
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -286,3 +287,21 @@ type Risk struct {
 }
 
 func (r *Risk) HasFinding(t string) bool { return r != nil && slices.Contains(r.Findings, t) }
+
+// Label is the first finding, else "<stars>★ <scorecard>", else "" (no data).
+func (r *Risk) Label() string {
+	switch {
+	case r == nil || (len(r.Findings) == 0 && r.Stars == 0):
+		return ""
+	case len(r.Findings) > 0:
+		return r.Findings[0]
+	}
+	stars := strconv.Itoa(r.Stars)
+	if r.Stars >= 1000 {
+		stars = strconv.Itoa(r.Stars/1000) + "k"
+	}
+	if r.Scorecard > 0 {
+		return fmt.Sprintf("%s★ %.1f", stars, r.Scorecard)
+	}
+	return stars + "★"
+}

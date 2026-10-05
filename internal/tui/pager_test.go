@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/sbresin/gh-dep-triage/internal/model"
@@ -104,5 +105,26 @@ func TestBrowsedRepaintsScreen(t *testing.T) {
 		if cmd == nil || !reflect.DeepEqual(cmd(), tea.ClearScreen()) {
 			t.Errorf("browsedMsg %+v must return tea.ClearScreen", msg)
 		}
+	}
+}
+
+func TestBlockerPagerShowsRisk(t *testing.T) {
+	pr := mkPR("acme/api", 1, "Bump lodash from 4.17.20 to 4.17.21", func(p *model.PR) {
+		p.Risk = &model.Risk{System: "NPM", SourceRepo: "github.com/lodash/\x1b[31mlodash", Stars: 61277, Scorecard: 7.5,
+			PublishedAt: time.Date(2021, 2, 20, 15, 42, 16, 0, time.UTC), Deprecated: true,
+			Advisories: []string{"GHSA-1"}, Findings: []string{"COOLDOWN"}}
+	})
+	got := blockerText(pr)
+	for _, want := range []string{"Dependency (deps.dev)", "github.com/lodash/", "61277 stars", "scorecard 7.5",
+		"published 2021-02-20", "deprecated", "findings: COOLDOWN", "advisories: GHSA-1"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q:\n%s", want, got)
+		}
+	}
+	if strings.ContainsRune(got, '\x1b') {
+		t.Errorf("escape leaked: %q", got)
+	}
+	if !strings.Contains(blockerText(mkPR("acme/api", 2, "Bump a from 1.0.0 to 1.0.1")), "No deps.dev data") {
+		t.Error("PRs without risk data say so")
 	}
 }

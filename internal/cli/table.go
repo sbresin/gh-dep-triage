@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 	"text/tabwriter"
 
@@ -68,30 +67,10 @@ func writeListTable(w io.Writer, groups []*model.Group) {
 		for _, pr := range g.PRs {
 			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 				pr.Status, sanitize(pr.Ref), updateLabel(pr), pr.Bump, checksLabel(pr.Checks), blockerCodes(pr), dash(pr.MergeDenied),
-				sanitize(riskLabel(pr.Risk)), sanitize(dash(pr.GroupID)))
+				sanitize(dash(pr.Risk.Label())), sanitize(dash(pr.GroupID)))
 		}
 	}
 	tw.Flush()
 	c := countStatuses(groups)
 	fmt.Fprintf(w, "\n%d PRs: %d ready, %d merging, %d blocked\n", c.Total, c.Ready, c.Merging, c.Blocked)
-}
-
-// riskLabel is the first deps.dev finding, else "<stars>★ <scorecard>".
-func riskLabel(r *model.Risk) string {
-	switch {
-	case r == nil:
-		return "-"
-	case len(r.Findings) > 0:
-		return r.Findings[0]
-	case r.Stars == 0:
-		return "-"
-	}
-	stars := strconv.Itoa(r.Stars)
-	if r.Stars >= 1000 {
-		stars = strconv.Itoa(r.Stars/1000) + "k"
-	}
-	if r.Scorecard > 0 {
-		return fmt.Sprintf("%s★ %.1f", stars, r.Scorecard)
-	}
-	return stars + "★"
 }

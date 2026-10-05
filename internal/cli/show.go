@@ -124,7 +124,7 @@ func writeShow(w io.Writer, d showData) {
 		fmt.Fprintf(w, "Merge:    denied (%s)\n", pr.MergeDenied)
 	}
 	if r := pr.Risk; r != nil {
-		fmt.Fprintf(w, "Risk:     %s  %s", sanitize(riskLabel(r)), sanitize(dash(r.SourceRepo)))
+		fmt.Fprintf(w, "Risk:     %s  %s", sanitize(dash(r.Label())), sanitize(dash(r.SourceRepo)))
 		if len(r.Findings) > 1 {
 			fmt.Fprintf(w, "  findings: %s", sanitize(strings.Join(r.Findings, ", ")))
 		}

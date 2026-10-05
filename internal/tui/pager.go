@@ -130,5 +130,40 @@ func blockerText(pr *model.PR) string {
 	if pr.Checks.Pending > 0 {
 		fmt.Fprintf(&b, "\nPending checks: %s\n", strings.Join(pr.Checks.PendingNames, ", "))
 	}
+	b.WriteString("\nDependency (deps.dev)\n")
+	r := pr.Risk
+	if r == nil {
+		b.WriteString("  No deps.dev data (ecosystem not covered, or the lookup failed).\n")
+		return safe.Text(b.String())
+	}
+	var project []string
+	if r.SourceRepo != "" {
+		project = append(project, r.SourceRepo)
+	}
+	if r.Stars > 0 {
+		project = append(project, fmt.Sprintf("%d stars", r.Stars))
+	}
+	if r.Scorecard > 0 {
+		project = append(project, fmt.Sprintf("scorecard %.1f", r.Scorecard))
+	}
+	if len(project) > 0 {
+		fmt.Fprintf(&b, "  %s\n", strings.Join(project, "  "))
+	}
+	var facts []string
+	if !r.PublishedAt.IsZero() {
+		facts = append(facts, "published "+r.PublishedAt.Format("2006-01-02"))
+	}
+	if r.Deprecated {
+		facts = append(facts, "deprecated")
+	}
+	if len(r.Findings) > 0 {
+		facts = append(facts, "findings: "+strings.Join(r.Findings, ", "))
+	}
+	if len(r.Advisories) > 0 {
+		facts = append(facts, "advisories: "+strings.Join(r.Advisories, ", "))
+	}
+	if len(facts) > 0 {
+		fmt.Fprintf(&b, "  %s\n", strings.Join(facts, "  "))
+	}
 	return safe.Text(b.String())
 }

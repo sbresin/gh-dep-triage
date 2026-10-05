@@ -153,3 +153,37 @@ func TestRowStyleTints(t *testing.T) {
 		t.Error("focused rows are reversed, group rows bold")
 	}
 }
+
+func TestRiskBadges(t *testing.T) {
+	s := fixture()
+	lodash := &model.Risk{SourceRepo: "github.com/lodash/lodash", Stars: 61277, Scorecard: 7.5}
+	var behind *model.PR
+	for _, p := range s.PRs() {
+		switch p.Ref {
+		case "acme/api#3":
+			behind = p
+			p.Risk = &model.Risk{Stars: 108000, Scorecard: 6.9}
+		case "acme/web#2":
+			p.Risk = lodash
+		}
+	}
+	if diff := cmp.Diff([]string{"behind", "108k★ 6.9", "review", "--"}, prBadges(behind)); diff != "" {
+		t.Errorf("PR badges (-want +got):\n%s", diff)
+	}
+	for _, g := range s.Groups {
+		if g.ID == "group:lodash@4.17.21" {
+			if diff := cmp.Diff([]string{"61k★ 7.5", "sel 0/2", iconCheckOK}, groupBadges(g, nil)); diff != "" {
+				t.Errorf("group badges take the first PR with risk data (-want +got):\n%s", diff)
+			}
+		}
+	}
+}
+
+func TestMaliciousRowIsRed(t *testing.T) {
+	pr := mkPR("acme/api", 1, "Bump a from 1.0.0 to 1.0.1", func(p *model.PR) {
+		p.Risk = &model.Risk{Findings: []string{model.FindingMalicious}}
+	})
+	if rowStyle(row{pr: pr}, nil, false).GetForeground() != styleRed.GetForeground() {
+		t.Error("a PR flagged MALICIOUS is red")
+	}
+}

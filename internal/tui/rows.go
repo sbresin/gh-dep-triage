@@ -113,6 +113,9 @@ func prBadges(pr *model.PR) []string {
 			out = append(out, b.badge)
 		}
 	}
+	if l := pr.Risk.Label(); l != "" {
+		out = append(out, safe.Inline(l))
+	}
 	if pr.Status == model.StatusMerging {
 		out = append(out, "merging")
 	}
@@ -137,6 +140,13 @@ func groupBadges(g *model.Group, sel map[string]bool) []string {
 		}
 	}
 	out := []string{}
+	// Every PR in a group updates the same package to the same version.
+	for _, pr := range g.PRs {
+		if l := pr.Risk.Label(); l != "" {
+			out = append(out, safe.Inline(l))
+			break
+		}
+	}
 	if len(groupSelectable(g)) == 0 {
 		out = append(out, "blocked")
 	}
@@ -248,11 +258,11 @@ func rowStyle(r row, sel map[string]bool, focused bool) lipgloss.Style {
 		s = s.Bold(true)
 		warn = len(groupSelectable(r.group)) == 0
 		for _, pr := range r.group.PRs {
-			failed = failed || pr.Checks.Failed > 0
+			failed = failed || pr.Checks.Failed > 0 || pr.Risk.HasFinding(model.FindingMalicious)
 			warn = warn || pr.Checks.Pending > 0
 		}
 	} else {
-		failed = r.pr.Checks.Failed > 0
+		failed = r.pr.Checks.Failed > 0 || r.pr.Risk.HasFinding(model.FindingMalicious)
 		warn = !selectable(r.pr) || r.pr.Checks.Pending > 0
 	}
 	switch {
