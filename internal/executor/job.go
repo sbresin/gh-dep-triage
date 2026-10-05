@@ -11,8 +11,8 @@ import (
 	"github.com/sbresin/gh-dep-triage/internal/triage"
 )
 
-func newResult(action string, pr *model.PR) model.Result {
-	return model.Result{Action: action, Ref: pr.Ref, HeadOid: pr.HeadOid, Steps: []string{}}
+func newResult(action string, pr *model.PR, args map[string]string) model.Result {
+	return model.Result{Action: action, Ref: pr.Ref, Args: args, HeadOid: pr.HeadOid, Steps: []string{}}
 }
 
 func finish(r model.Result, status, reason, message string) model.Result {
@@ -21,23 +21,23 @@ func finish(r model.Result, status, reason, message string) model.Result {
 }
 
 // CancelledResult is the result of a job cancelled before it started.
-func CancelledResult(action string, pr *model.PR) model.Result {
-	return finish(newResult(action, pr), model.ResultSkipped, model.ReasonCancelled, "cancelled before it started")
+func CancelledResult(action string, pr *model.PR, args map[string]string) model.Result {
+	return finish(newResult(action, pr, args), model.ResultSkipped, model.ReasonCancelled, "cancelled before it started")
 }
 
 // run executes one job: refetch the PR, check it is still open, at the
 // pinned head (j.PR.HeadOid) and allowed by the hard rules, then act on the
 // fresh data.
 func (q *Queue) run(ctx context.Context, j Job, step func(string)) model.Result {
-	r := newResult(j.Action, j.PR)
+	r := newResult(j.Action, j.PR, j.Args)
 	if ctx.Err() != nil {
-		return CancelledResult(j.Action, j.PR)
+		return CancelledResult(j.Action, j.PR, j.Args)
 	}
 	step("checking")
 	fresh, err := q.fetch(ctx, j.PR.PRRef())
 	switch {
 	case ctx.Err() != nil:
-		return CancelledResult(j.Action, j.PR)
+		return CancelledResult(j.Action, j.PR, j.Args)
 	case err != nil:
 		return finish(r, model.ResultFailed, model.ReasonRefetchFailed, err.Error())
 	case fresh.State != "OPEN":
@@ -46,7 +46,10 @@ func (q *Queue) run(ctx context.Context, j Job, step func(string)) model.Result 
 		return finish(r, model.ResultFailed, model.ReasonHeadChanged,
 			fmt.Sprintf("head moved from %s to %s since you confirmed", j.PR.HeadOid, fresh.HeadOid))
 	}
-	if v := policy.Evaluate(j.Action, fresh, nil, policy.Rules{Bots: q.o.Rules.Bots}); !v.Allow {
+	// Blockers need the whole snapshot, so a refetched PR has none; the
+	// confirmed PR's blockers still hold at the pinned head.
+	fresh.Blockers = j.PR.Blockers
+	if v := policy.Evaluate(j.Action, fresh, j.Args, policy.Rules{Bots: q.o.Rules.Bots}); !v.Allow {
 		return finish(r, model.ResultDenied, v.Reason, v.Message)
 	}
 	switch j.Action {
@@ -54,6 +57,14 @@ func (q *Queue) run(ctx context.Context, j Job, step func(string)) model.Result 
 		return q.approve(ctx, r, fresh, step)
 	case model.ActionMerge:
 		return q.merge(ctx, r, fresh, step)
+	case model.ActionRebase, model.ActionRecreate:
+		return q.botRequest(ctx, r, fresh, j.Action, step)
+	case model.ActionRerun:
+		return q.rerun(ctx, r, fresh, step)
+	case model.ActionRequestReview:
+		return q.requestReview(ctx, r, fresh, j.Args["reviewer"], step)
+	case model.ActionClose:
+		return q.closePR(ctx, r, fresh, j.Args["reason"], step)
 	default:
 		return finish(r, model.ResultFailed, model.ReasonMutationFailed, "unsupported action "+j.Action)
 	}

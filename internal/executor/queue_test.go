@@ -110,7 +110,7 @@ func TestPauseResume(t *testing.T) {
 	f := repoFake("acme/api#1")
 	q := NewQueue(context.Background(), f, opts(&sleeps{}))
 	q.Pause()
-	if _, err := q.Submit("approve", enriched(f, "acme/api#1")); err != nil {
+	if _, err := q.Submit("approve", enriched(f, "acme/api#1"), nil); err != nil {
 		t.Fatal(err)
 	}
 	if jobs := q.Jobs(); len(jobs) != 1 || jobs[0].State != JobQueued || len(f.Calls) != 0 {
@@ -135,8 +135,8 @@ func TestCancelOnlyQueued(t *testing.T) {
 	q := NewQueue(context.Background(), f, opts(&sleeps{}))
 	events := collect(q)
 	q.Pause()
-	id1, _ := q.Submit("approve", enriched(f, "acme/api#1"))
-	id2, _ := q.Submit("approve", enriched(f, "acme/api#2"))
+	id1, _ := q.Submit("approve", enriched(f, "acme/api#1"), nil)
+	id2, _ := q.Submit("approve", enriched(f, "acme/api#2"), nil)
 	if err := q.Cancel(id2); err != nil {
 		t.Fatalf("cancel queued: %v", err)
 	}
@@ -167,13 +167,13 @@ func TestDuplicatesRetryAndClosed(t *testing.T) {
 	q := NewQueue(context.Background(), f, opts(&sleeps{}))
 	q.Pause()
 	pr := enriched(f, "acme/api#1")
-	if _, err := q.Submit("merge", pr); err != nil {
+	if _, err := q.Submit("merge", pr, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := q.Submit("merge", pr); !errors.Is(err, ErrAlreadyQueued) {
+	if _, err := q.Submit("merge", pr, nil); !errors.Is(err, ErrAlreadyQueued) {
 		t.Errorf("duplicate merge: err = %v", err)
 	}
-	if _, err := q.Submit("approve", pr); err != nil {
+	if _, err := q.Submit("approve", pr, nil); err != nil {
 		t.Errorf("approve of the same PR is a different job: %v", err)
 	}
 	q.Resume()
@@ -185,11 +185,11 @@ func TestDuplicatesRetryAndClosed(t *testing.T) {
 			}
 		}
 	}
-	if _, err := q.Submit("merge", pr); err != nil {
+	if _, err := q.Submit("merge", pr, nil); err != nil {
 		t.Errorf("a finished job may be submitted again (retry): %v", err)
 	}
 	q.Close(false)
-	if _, err := q.Submit("merge", pr); !errors.Is(err, ErrClosed) {
+	if _, err := q.Submit("merge", pr, nil); !errors.Is(err, ErrClosed) {
 		t.Errorf("submit after close: err = %v", err)
 	}
 	for range q.Events() {
@@ -201,8 +201,8 @@ func TestCloseCancelsQueued(t *testing.T) {
 	q := NewQueue(context.Background(), f, opts(&sleeps{}))
 	events := collect(q)
 	q.Pause()
-	_, _ = q.Submit("approve", enriched(f, "acme/api#1"))
-	_, _ = q.Submit("approve", enriched(f, "acme/web#2"))
+	_, _ = q.Submit("approve", enriched(f, "acme/api#1"), nil)
+	_, _ = q.Submit("approve", enriched(f, "acme/web#2"), nil)
 	q.Close(true)
 	evs := <-events
 	kinds := []EventKind{}
@@ -227,8 +227,8 @@ func TestStopDoesNotWait(t *testing.T) {
 	g := &gate{Fake: f, release: make(chan struct{})}
 	q := NewQueue(context.Background(), g, opts(&sleeps{}))
 	events := collect(q)
-	_, _ = q.Submit("approve", enriched(f, "acme/api#1"))
-	_, _ = q.Submit("approve", enriched(f, "acme/api#2"))
+	_, _ = q.Submit("approve", enriched(f, "acme/api#1"), nil)
+	_, _ = q.Submit("approve", enriched(f, "acme/api#2"), nil)
 	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(time.Millisecond) {
 		g.mu.Lock()
 		n := g.inFlight
@@ -241,7 +241,7 @@ func TestStopDoesNotWait(t *testing.T) {
 	if jobs := q.Jobs(); jobs[0].State != JobRunning || jobs[1].State != JobCancelled {
 		t.Errorf("after Stop: %v, %v", jobs[0].State, jobs[1].State)
 	}
-	if _, err := q.Submit("merge", enriched(f, "acme/api#1")); !errors.Is(err, ErrClosed) {
+	if _, err := q.Submit("merge", enriched(f, "acme/api#1"), nil); !errors.Is(err, ErrClosed) {
 		t.Errorf("Submit after Stop: %v", err)
 	}
 	close(g.release)
@@ -256,7 +256,7 @@ func TestParentCancelClosesQueue(t *testing.T) {
 	q := NewQueue(ctx, f, opts(&sleeps{}))
 	events := collect(q)
 	q.Pause()
-	_, _ = q.Submit("approve", enriched(f, "acme/api#1"))
+	_, _ = q.Submit("approve", enriched(f, "acme/api#1"), nil)
 	cancel()
 	select {
 	case evs := <-events:
@@ -276,8 +276,8 @@ func TestClearFinished(t *testing.T) {
 	f := repoFake("acme/api#1", "acme/api#2")
 	q := NewQueue(context.Background(), f, opts(&sleeps{}))
 	q.Pause()
-	id1, _ := q.Submit("approve", enriched(f, "acme/api#1"))
-	id2, _ := q.Submit("approve", enriched(f, "acme/api#2"))
+	id1, _ := q.Submit("approve", enriched(f, "acme/api#1"), nil)
+	id2, _ := q.Submit("approve", enriched(f, "acme/api#2"), nil)
 	_ = q.Cancel(id1)
 	q.ClearFinished()
 	if jobs := q.Jobs(); len(jobs) != 1 || jobs[0].ID != id2 {

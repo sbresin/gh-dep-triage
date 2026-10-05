@@ -12,7 +12,7 @@ import (
 
 // Queue is the part of *executor.Queue the TUI uses.
 type Queue interface {
-	Submit(action string, pr *model.PR) (executor.JobID, error)
+	Submit(action string, pr *model.PR, args map[string]string) (executor.JobID, error)
 	Cancel(id executor.JobID) error
 	Pause()
 	Resume()

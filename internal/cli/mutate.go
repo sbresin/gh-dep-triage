@@ -99,9 +99,9 @@ func (a *app) runQueue(ctx context.Context, client github.Client, viewer string,
 	idx := map[executor.JobID]int{}
 	q.Pause()
 	for i, t := range tasks {
-		id, err := q.Submit(t.Action, t.PR)
+		id, err := q.Submit(t.Action, t.PR, t.Args)
 		if err != nil { // Submit failed: the queue closed after Ctrl-C
-			results[i] = executor.CancelledResult(t.Action, t.PR)
+			results[i] = executor.CancelledResult(t.Action, t.PR, t.Args)
 			a.progressResult(results[i])
 			continue
 		}

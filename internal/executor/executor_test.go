@@ -85,7 +85,7 @@ func runAll(t *testing.T, ctx context.Context, c github.Client, o Options, jobs 
 	q.Pause()
 	ids := make([]JobID, len(jobs))
 	for i, j := range jobs {
-		id, err := q.Submit(j.Action, j.PR)
+		id, err := q.Submit(j.Action, j.PR, j.Args)
 		if err != nil {
 			t.Errorf("submit %s %s: %v", j.Action, j.PR.Ref, err)
 		}

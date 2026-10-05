@@ -64,7 +64,7 @@ func TestRootWithTTYStartsTUI(t *testing.T) {
 	if q == nil {
 		t.Fatal("the TUI gets a work queue")
 	}
-	if _, err := q.Submit(model.ActionMerge, c.snap.Find(model.PRRef{Repo: "acme/api", Number: 1})); err != nil {
+	if _, err := q.Submit(model.ActionMerge, c.snap.Find(model.PRRef{Repo: "acme/api", Number: 1}), nil); err != nil {
 		t.Fatal(err)
 	}
 	for ev := range q.Events() {

@@ -25,7 +25,7 @@ func queueModel(t *testing.T, width int) (Model, *fakeQueue) {
 	nm, _ := m.Update(tea.WindowSizeMsg{Width: width, Height: 12})
 	m = nm.(Model)
 	for _, ref := range []string{"acme/api#1", "acme/web#2", "acme/api#3", "acme/api#4"} {
-		if _, err := fq.Submit(model.ActionMerge, m.findPR(ref)); err != nil {
+		if _, err := fq.Submit(model.ActionMerge, m.findPR(ref), nil); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -96,13 +96,13 @@ func TestQueueCursorFollowsNewJobsUntilMoved(t *testing.T) {
 		t.Fatalf("cursor follows the newest job: %d", m.qcursor)
 	}
 	m, _ = press(m, "k")
-	_, _ = fq.Submit(model.ActionMerge, m.findPR("acme/web#2"))
+	_, _ = fq.Submit(model.ActionMerge, m.findPR("acme/web#2"), nil)
 	m = deliver(m, executor.Event{Kind: executor.EventQueued, Job: fq.jobs[4]})
 	if m.qcursor != 2 {
 		t.Errorf("a moved cursor stays put: %d", m.qcursor)
 	}
 	m, _ = press(m, "j", "j")
-	_, _ = fq.Submit(model.ActionMerge, m.findPR("acme/api#1"))
+	_, _ = fq.Submit(model.ActionMerge, m.findPR("acme/api#1"), nil)
 	m = deliver(m, executor.Event{Kind: executor.EventQueued, Job: fq.jobs[5]})
 	if m.qcursor != 5 {
 		t.Errorf("back on the last job, the cursor follows again: %d", m.qcursor)
@@ -230,7 +230,7 @@ func TestQueuePaneSanitizes(t *testing.T) {
 
 func TestClearKeepsCursorOnFocusedJob(t *testing.T) {
 	m, fq := queueModel(t, 120)
-	_, _ = fq.Submit(model.ActionMerge, m.findPR("acme/web#2"))
+	_, _ = fq.Submit(model.ActionMerge, m.findPR("acme/web#2"), nil)
 	m.syncJobs(false)
 	m, _ = press(m, "tab", "k", "C", "x") // api#4, queued
 	if diff := cmp.Diff([]executor.JobID{4}, fq.cancelled); diff != "" {

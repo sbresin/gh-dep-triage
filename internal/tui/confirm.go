@@ -84,7 +84,7 @@ func (m Model) submitConfirmed() (tea.Model, tea.Cmd) {
 	}
 	queued, problems := 0, []string{}
 	for _, pr := range allowed {
-		if _, err := m.deps.Queue.Submit(model.ActionMerge, pr); err != nil {
+		if _, err := m.deps.Queue.Submit(model.ActionMerge, pr, nil); err != nil {
 			problems = append(problems, fmt.Sprintf("%s: %v", pr.Ref, err))
 			continue
 		}

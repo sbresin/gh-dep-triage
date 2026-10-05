@@ -1,4 +1,4 @@
-// Package executor runs approve and merge jobs against GitHub through a
+// Package executor runs dependency-PR jobs against GitHub through a
 // long-lived Queue shared by the CLI and the TUI.
 package executor
 
@@ -100,6 +100,8 @@ func (s JobState) String() string {
 type Job struct {
 	ID     JobID
 	Action string
+	// Args are the action's arguments, e.g. reviewer or reason.
+	Args   map[string]string
 	PR     *model.PR
 	State  JobState
 	Step   string
@@ -254,7 +256,7 @@ func (q *Queue) emit(kind EventKind, j *Job) {
 // Submit queues action for pr. It fails with ErrAlreadyQueued while the same
 // action for the same PR is queued or running, and with ErrClosed once the
 // queue is closing.
-func (q *Queue) Submit(action string, pr *model.PR) (JobID, error) {
+func (q *Queue) Submit(action string, pr *model.PR, args map[string]string) (JobID, error) {
 	var id JobID
 	err := ErrClosed
 	q.do(func(s *state) {
@@ -268,7 +270,7 @@ func (q *Queue) Submit(action string, pr *model.PR) (JobID, error) {
 				return
 			}
 		}
-		j := &Job{ID: s.nextID, Action: action, PR: pr, State: JobQueued}
+		j := &Job{ID: s.nextID, Action: action, Args: args, PR: pr, State: JobQueued}
 		s.nextID++
 		s.jobs = append(s.jobs, j)
 		q.emit(EventQueued, j)
@@ -299,7 +301,7 @@ func (q *Queue) Cancel(id JobID) error {
 }
 
 func (q *Queue) cancelJob(j *Job) {
-	j.State, j.Step, j.Result = JobCancelled, "", CancelledResult(j.Action, j.PR)
+	j.State, j.Step, j.Result = JobCancelled, "", CancelledResult(j.Action, j.PR, j.Args)
 	q.emit(EventFinished, j)
 }
 

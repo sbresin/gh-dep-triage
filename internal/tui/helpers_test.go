@@ -67,16 +67,20 @@ func newFakeQueue() *fakeQueue {
 	return &fakeQueue{submitErr: map[string]error{}, events: make(chan executor.Event)}
 }
 
-func (f *fakeQueue) Submit(action string, pr *model.PR) (executor.JobID, error) {
+func (f *fakeQueue) Submit(action string, pr *model.PR, args map[string]string) (executor.JobID, error) {
 	if len(f.closed) > 0 {
 		return 0, executor.ErrClosed
 	}
 	if err := f.submitErr[pr.Ref]; err != nil {
 		return 0, err
 	}
-	f.submitted = append(f.submitted, action+" "+pr.Ref+" "+pr.HeadOid)
+	s := action + " " + pr.Ref + " " + pr.HeadOid
+	if len(args) > 0 {
+		s += " " + fmt.Sprint(args)
+	}
+	f.submitted = append(f.submitted, s)
 	id := executor.JobID(len(f.jobs) + 1)
-	f.jobs = append(f.jobs, executor.Job{ID: id, Action: action, PR: pr, State: executor.JobQueued})
+	f.jobs = append(f.jobs, executor.Job{ID: id, Action: action, Args: args, PR: pr, State: executor.JobQueued})
 	return id, nil
 }
 
