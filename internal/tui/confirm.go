@@ -16,6 +16,8 @@ const pinnedNote = "Pinned to the commits shown. Each PR is re-checked right bef
 
 // confirmState is the open confirm popup.
 type confirmState struct {
+	action string
+	args   map[string]string
 	prs    []*model.PR       // sorted by repo, then number
 	denied map[string]string // ref → hard-rule reason; these are not queued
 	moved  bool              // a retry whose head moved since the failed attempt
@@ -33,12 +35,12 @@ func (m Model) markedPRs() []*model.PR {
 	return out
 }
 
-// openConfirm opens the confirm popup for prs; retryOf is the finished job
-// being retried, or nil.
-func (m Model) openConfirm(prs []*model.PR, retryOf *executor.Job) Model {
-	c := confirmState{prs: triage.SortPRs(prs, "repo"), denied: map[string]string{}}
+// openConfirm opens the confirm popup for action on prs; retryOf is the
+// finished job being retried, or nil.
+func (m Model) openConfirm(action string, args map[string]string, prs []*model.PR, retryOf *executor.Job) Model {
+	c := confirmState{action: action, args: args, prs: triage.SortPRs(prs, "repo"), denied: map[string]string{}}
 	for _, pr := range c.prs {
-		if v := policy.Evaluate(model.ActionMerge, pr, nil, m.deps.Rules); !v.Allow {
+		if v := policy.Evaluate(action, pr, args, m.deps.Rules); !v.Allow {
 			c.denied[pr.Ref] = v.Reason
 		}
 	}
@@ -47,6 +49,31 @@ func (m Model) openConfirm(prs []*model.PR, retryOf *executor.Job) Model {
 	}
 	m.confirm, m.popup = c, popupConfirm
 	return m
+}
+
+// confirmTitle names the action; merge keeps the batch wording.
+func confirmTitle(c confirmState) string {
+	ref := c.prs[0].Ref
+	switch c.action {
+	case model.ActionMerge:
+		return fmt.Sprintf("Approve + Merge %d PRs?", len(c.prs))
+	case model.ActionRebase:
+		return "Rebase " + ref + "?"
+	case model.ActionRerun:
+		return "Re-run failed checks on " + ref + "?"
+	case model.ActionClose:
+		return "Close " + ref + " as " + c.args["reason"] + "?"
+	default:
+		return c.action + " " + ref + "?"
+	}
+}
+
+// actionName is how the status line names an action.
+func actionName(action string) string {
+	if action == model.ActionMerge {
+		return "Approve+Merge"
+	}
+	return action
 }
 
 // confirmRows is how many PR lines the popup shows before it scrolls.
@@ -84,7 +111,7 @@ func (m Model) submitConfirmed() (tea.Model, tea.Cmd) {
 	}
 	queued, problems := 0, []string{}
 	for _, pr := range allowed {
-		if _, err := m.deps.Queue.Submit(model.ActionMerge, pr, nil); err != nil {
+		if _, err := m.deps.Queue.Submit(m.confirm.action, pr, m.confirm.args); err != nil {
 			problems = append(problems, fmt.Sprintf("%s: %v", pr.Ref, err))
 			continue
 		}
@@ -93,7 +120,7 @@ func (m Model) submitConfirmed() (tea.Model, tea.Cmd) {
 	m.selected = map[string]bool{}
 	m.syncJobs(false)
 	m.fixScroll()
-	m.status = fmt.Sprintf("Queued %d PR(s) for Approve+Merge.", queued)
+	m.status = fmt.Sprintf("Queued %d PR(s) for %s.", queued, actionName(m.confirm.action))
 	if len(problems) > 0 {
 		m.status += " Not queued: " + strings.Join(problems, "; ") + "."
 	}
@@ -102,7 +129,7 @@ func (m Model) submitConfirmed() (tea.Model, tea.Cmd) {
 
 func (m Model) viewConfirm() string {
 	c, w := m.confirm, popupWidth(m.width)
-	lines := []string{styleBold.Render(clip(fmt.Sprintf("Approve + Merge %d PRs?", len(c.prs)), w)), ""}
+	lines := []string{styleBold.Render(clip(confirmTitle(c), w)), ""}
 	end := min(len(c.prs), c.scroll+m.confirmRows())
 	for _, pr := range c.prs[c.scroll:end] {
 		mark := "  "

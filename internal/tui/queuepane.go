@@ -20,8 +20,16 @@ func shortRef(pr *model.PR) string {
 	return fmt.Sprintf("%s#%d", name, pr.Number)
 }
 
-// jobDetail is the step while running, "queued", or the outcome.
+// jobDetail is jobOutcome, prefixed with the action unless it is merge.
 func jobDetail(j executor.Job) string {
+	if j.Action == model.ActionMerge {
+		return jobOutcome(j)
+	}
+	return j.Action + ": " + jobOutcome(j)
+}
+
+// jobOutcome is the step while running, "queued", or the outcome.
+func jobOutcome(j executor.Job) string {
 	switch j.State {
 	case executor.JobQueued:
 		return "queued"
@@ -166,7 +174,7 @@ func (m Model) retryJob(j executor.Job, ok bool) (tea.Model, tea.Cmd) {
 			m.status = j.PR.Ref + " is not in the current list; reload first (g)."
 			return m, nil
 		}
-		return m.openConfirm([]*model.PR{pr}, &j), nil
+		return m.openConfirm(j.Action, j.Args, []*model.PR{pr}, &j), nil
 	}
 	return m, nil
 }

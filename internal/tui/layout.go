@@ -8,6 +8,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/sbresin/gh-dep-triage/internal/executor"
+	"github.com/sbresin/gh-dep-triage/internal/model"
 )
 
 type pane int
@@ -20,6 +21,8 @@ const (
 const (
 	listKeys  = "tab queue  pgup/dn  spc mark  c confirm  enter fold  s sort  o open  d desc  b why  g reload  q quit"
 	queueKeys = "tab list  j/k move  x cancel  r retry  C clear  p pause  o open  d desc  b details  q quit"
+	// blockedKeys replaces listKeys on a blocked PR, which can't be marked.
+	blockedKeys = "tab queue  pgup/dn  s sort  o open  d desc  b why  r rebase  R rerun  x close  g reload  q quit"
 )
 
 func (m Model) listWidth() int  { return int(math.Round(0.65 * float64(m.width))) }
@@ -117,6 +120,8 @@ func (m Model) viewMain() string {
 	keys := listKeys
 	if m.focus == paneQueue {
 		keys = queueKeys
+	} else if pr := m.focusedPR(); pr != nil && pr.Status == model.StatusBlocked {
+		keys = blockedKeys
 	}
 	lines := []string{styleBold.Render(clip(m.header(), m.width))}
 	for i := range left {

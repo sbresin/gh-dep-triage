@@ -67,7 +67,7 @@ func TestSplitLayoutGolden(t *testing.T) {
 }
 
 func TestKeyHelpFits100Columns(t *testing.T) {
-	for _, k := range []string{listKeys, queueKeys} {
+	for _, k := range []string{listKeys, queueKeys, blockedKeys} {
 		if w := lipgloss.Width(k); w > 100 {
 			t.Errorf("key help is %d columns: %q", w, k)
 		}
@@ -76,7 +76,7 @@ func TestKeyHelpFits100Columns(t *testing.T) {
 
 func TestTabSwitchesFocusAndKeys(t *testing.T) {
 	m, _ := queueModel(t, 120)
-	if m.focus != paneList || !strings.Contains(plain(m), listKeys) {
+	if m.focus != paneList || !strings.Contains(plain(m), "tab queue") {
 		t.Fatalf("starts on the list pane")
 	}
 	m, _ = press(m, "tab")

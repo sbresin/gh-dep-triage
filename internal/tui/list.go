@@ -104,13 +104,15 @@ func (m Model) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case "space":
 		m.toggle(cur)
+	case "r", "R", "x":
+		return m.unblock(k, cur)
 	case "c":
 		prs := m.markedPRs()
 		if len(prs) == 0 {
 			m.status = "Select at least one PR before confirming."
 			break
 		}
-		return m.openConfirm(prs, nil), nil
+		return m.openConfirm(model.ActionMerge, nil, prs, nil), nil
 	}
 	m.fixScroll()
 	return m, nil
