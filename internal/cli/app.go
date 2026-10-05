@@ -12,12 +12,12 @@ import (
 	"time"
 
 	"github.com/cli/go-gh/v2/pkg/term"
-	"github.com/spf13/cobra"
 	"github.com/sbresin/gh-dep-triage/internal/config"
 	"github.com/sbresin/gh-dep-triage/internal/github"
 	"github.com/sbresin/gh-dep-triage/internal/loader"
 	"github.com/sbresin/gh-dep-triage/internal/model"
 	"github.com/sbresin/gh-dep-triage/internal/tui"
+	"github.com/spf13/cobra"
 )
 
 // version is overridden at build time via -ldflags.

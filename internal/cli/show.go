@@ -6,11 +6,11 @@ import (
 	"io"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/sbresin/gh-dep-triage/internal/github"
 	"github.com/sbresin/gh-dep-triage/internal/model"
 	"github.com/sbresin/gh-dep-triage/internal/parse"
 	"github.com/sbresin/gh-dep-triage/internal/triage"
+	"github.com/spf13/cobra"
 )
 
 const logTailLines = 200

@@ -3,8 +3,8 @@ package cli
 import (
 	"io"
 
-	"github.com/spf13/cobra"
 	"github.com/sbresin/gh-dep-triage/internal/model"
+	"github.com/spf13/cobra"
 )
 
 type counts struct {

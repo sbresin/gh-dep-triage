@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/spf13/cobra"
 	"github.com/sbresin/gh-dep-triage/internal/executor"
 	"github.com/sbresin/gh-dep-triage/internal/model"
 	"github.com/sbresin/gh-dep-triage/internal/policy"
 	"github.com/sbresin/gh-dep-triage/internal/tui"
+	"github.com/spf13/cobra"
 )
 
 // tui loads a snapshot (with progress on stderr) and runs the interactive UI

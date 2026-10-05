@@ -3,9 +3,9 @@ package cli
 import (
 	"os"
 
-	"github.com/spf13/cobra"
 	"github.com/sbresin/gh-dep-triage/internal/model"
 	"github.com/sbresin/gh-dep-triage/internal/plan"
+	"github.com/spf13/cobra"
 )
 
 var applyActions = map[string]bool{model.ActionApprove: true, model.ActionMerge: true}
