@@ -17,6 +17,10 @@ import (
 
 var DefaultBots = []string{"dependabot", "renovate"}
 
+// depsDevTimeout bounds the whole deps.dev lookup so a degraded service
+// can't stall loading; its data is advisory.
+var depsDevTimeout = 15 * time.Second
+
 type Options struct {
 	Limit    int
 	Workers  int
@@ -240,14 +244,16 @@ func attachRisk(ctx context.Context, l RiskLookup, prs []*model.PR, progress fun
 		return nil
 	}
 	progress("Checking %d dependencies on deps.dev…", len(keys))
+	ctx, cancel := context.WithTimeout(ctx, depsDevTimeout)
+	defer cancel()
 	risks, err := l.Lookup(ctx, keys)
-	if err != nil {
-		return []model.Problem{{Code: "depsdev_unavailable", Message: "deps.dev lookup failed, so risk data is missing: " + err.Error()}}
-	}
 	for pr, k := range keyOf {
 		if r, ok := risks[k]; ok {
 			pr.Risk = &r
 		}
+	}
+	if err != nil {
+		return []model.Problem{{Code: "depsdev_unavailable", Message: "deps.dev lookup failed, so risk data is missing or incomplete: " + err.Error()}}
 	}
 	return nil
 }

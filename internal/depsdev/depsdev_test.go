@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sort"
 	"sync"
 	"testing"
@@ -138,5 +139,19 @@ func TestLookupNoKeysMakesNoRequests(t *testing.T) {
 	s, c := newServer(t)
 	if got, err := c.Lookup(context.Background(), nil); err != nil || len(got) != 0 || len(s.got) != 0 {
 		t.Errorf("got %v, %v, requests %v", got, err, s.got)
+	}
+}
+
+// A failed batch must not discard the safety findings that did arrive.
+func TestLookupKeepsFindingsWhenProjectsFail(t *testing.T) {
+	s, c := newServer(t)
+	s.bodies["/versionbatch"] = []string{`{"responses":[{"request":{"versionKey":{"system":"NPM","name":"lodash","version":"4.17.21"}},
+		"version":{"relatedProjects":[{"projectKey":{"id":"github.com/lodash/lodash"},"relationType":"SOURCE_REPO"}]}}]}`}
+	s.bodies["/findingsbatch"] = []string{`{"responses":[{"request":{"versionKey":{"system":"NPM","name":"lodash","version":"4.17.21"}},
+		"findings":{"packageFindings":[{"type":"MALICIOUS"}]}}]}`}
+	s.status["/projectbatch"] = []int{http.StatusInternalServerError}
+	got, err := c.Lookup(context.Background(), []model.DepKey{lodash})
+	if err == nil || !slices.Contains(got[lodash].Findings, model.FindingMalicious) {
+		t.Errorf("got %+v, %v; want the MALICIOUS finding and an error", got, err)
 	}
 }

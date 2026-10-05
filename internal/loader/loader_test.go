@@ -250,3 +250,46 @@ func TestLoadRiskFailureIsWarning(t *testing.T) {
 		t.Errorf("warnings = %+v", snap.Warnings)
 	}
 }
+
+func TestLoadKeepsPartialRisk(t *testing.T) {
+	key := model.DepKey{System: "NPM", Name: "lodash", Version: "4.17.21"}
+	o := opts()
+	o.DepsDev = &fakeLookup{risks: map[model.DepKey]model.Risk{key: {System: "NPM", Findings: []string{model.FindingMalicious}}},
+		err: errors.New("deps.dev /projectbatch: 500 Internal Server Error")}
+	snap, err := Load(context.Background(), riskFake(), o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pr := snap.Find(model.PRRef{Repo: "acme/api", Number: 1})
+	if !pr.Risk.HasFinding(model.FindingMalicious) || len(snap.Warnings) != 1 || snap.Warnings[0].Code != "depsdev_unavailable" {
+		t.Errorf("risk=%+v warnings=%+v", pr.Risk, snap.Warnings)
+	}
+}
+
+type hangingLookup struct{}
+
+func (hangingLookup) Lookup(ctx context.Context, _ []model.DepKey) (map[model.DepKey]model.Risk, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-time.After(2 * time.Second):
+		return nil, nil
+	}
+}
+
+// A slow deps.dev must not stall loading: the lookup has its own deadline.
+func TestLoadRiskLookupHasDeadline(t *testing.T) {
+	old := depsDevTimeout
+	depsDevTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { depsDevTimeout = old })
+	o := opts()
+	o.DepsDev = hangingLookup{}
+	start := time.Now()
+	snap, err := Load(context.Background(), riskFake(), o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d := time.Since(start); d > time.Second || len(snap.Warnings) != 1 || snap.Warnings[0].Code != "depsdev_unavailable" {
+		t.Errorf("took %v, warnings %+v", d, snap.Warnings)
+	}
+}

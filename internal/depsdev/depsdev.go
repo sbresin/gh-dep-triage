@@ -99,7 +99,9 @@ type projectPage struct {
 
 // Lookup fetches risk data for keys in three batch calls: versions and
 // findings in parallel, then the source projects. Version keys are always in
-// the result; project-only keys only when deps.dev knows the project.
+// the result; project-only keys only when deps.dev knows the project. On
+// error the result still holds whatever arrived, so a failed project batch
+// never discards findings such as MALICIOUS.
 func (c *Client) Lookup(ctx context.Context, keys []model.DepKey) (map[model.DepKey]model.Risk, error) {
 	out := map[model.DepKey]model.Risk{}
 	var vreqs []any
@@ -167,7 +169,7 @@ func (c *Client) Lookup(ctx context.Context, keys []model.DepKey) (map[model.Dep
 	}()
 	wg.Wait()
 	if err := errors.Join(verr, ferr); err != nil {
-		return nil, err
+		return out, err
 	}
 
 	byProject := map[string][]model.DepKey{}
@@ -204,10 +206,7 @@ func (c *Client) Lookup(ctx context.Context, keys []model.DepKey) (map[model.Dep
 		}
 		return p.NextPageToken
 	})
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
+	return out, err
 }
 
 // findingTypes appends the finding types not already in have, skipping
