@@ -296,3 +296,13 @@ func TestMergeMutationTimesOut(t *testing.T) {
 		t.Fatal("the job did not finish: the mutation has no timeout")
 	}
 }
+
+func TestRunDeniesMaliciousFromConfirmedRisk(t *testing.T) {
+	f := newMergeFake(approved)
+	j := job(f, "merge", "acme/api#1")
+	j.PR.Risk = &model.Risk{Findings: []string{model.FindingMalicious}}
+	got, _ := runAll(t, context.Background(), f, opts(&sleeps{}), j)
+	if got[0].Status != model.ResultDenied || got[0].Reason != model.ReasonMalicious || len(f.Calls) != 0 {
+		t.Errorf("result=%+v calls=%v", got[0], f.Calls)
+	}
+}

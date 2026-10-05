@@ -30,6 +30,9 @@ func TestEvaluate(t *testing.T) {
 		{"human PR", model.ActionApprove, pr(func(p *model.PR) { p.Author = "alice" }), Rules{}, false, model.ReasonNotBotPR},
 		{"custom bot list", model.ActionMerge, pr(func(p *model.PR) { p.Author = "my-renovate" }), Rules{Bots: []string{"my-renovate[bot]"}}, true, ""},
 		{"default bots replaced", model.ActionMerge, pr(), Rules{Bots: []string{"my-renovate"}}, false, model.ReasonNotBotPR},
+		{"malicious blocks merge", model.ActionMerge, pr(func(p *model.PR) { p.Risk = &model.Risk{Findings: []string{model.FindingMalicious}} }), Rules{}, false, model.ReasonMalicious},
+		{"malicious blocks approve", model.ActionApprove, pr(func(p *model.PR) { p.Risk = &model.Risk{Findings: []string{model.FindingMalicious}} }), Rules{}, false, model.ReasonMalicious},
+		{"cooldown is advice only", model.ActionMerge, pr(func(p *model.PR) { p.Risk = &model.Risk{Findings: []string{"COOLDOWN"}} }), soft, true, ""},
 		{"failing checks block merge", model.ActionMerge, pr(func(p *model.PR) {
 			p.Checks.Failed, p.Checks.FailedNames = 1, []string{"test"}
 		}), Rules{}, false, model.ReasonChecksFailing},

@@ -46,9 +46,9 @@ func (q *Queue) run(ctx context.Context, j Job, step func(string)) model.Result 
 		return finish(r, model.ResultFailed, model.ReasonHeadChanged,
 			fmt.Sprintf("head moved from %s to %s since you confirmed", j.PR.HeadOid, fresh.HeadOid))
 	}
-	// Blockers need the whole snapshot, so a refetched PR has none; the
-	// confirmed PR's blockers still hold at the pinned head.
-	fresh.Blockers = j.PR.Blockers
+	// Blockers and risk come from the whole snapshot, so a refetched PR has
+	// neither; the confirmed PR's still hold at the pinned head.
+	fresh.Blockers, fresh.Risk = j.PR.Blockers, j.PR.Risk
 	if v := policy.Evaluate(j.Action, fresh, j.Args, policy.Rules{Bots: q.o.Rules.Bots}); !v.Allow {
 		return finish(r, model.ResultDenied, v.Reason, v.Message)
 	}

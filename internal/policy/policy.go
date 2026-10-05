@@ -39,6 +39,9 @@ func Evaluate(action string, pr *model.PR, args map[string]string, r Rules) Verd
 	if pr.Checks.Failed > 0 && (action == model.ActionMerge || (action == model.ActionApprove && pr.AutoMerge)) {
 		return deny(model.ReasonChecksFailing, "%d failing check(s): %s", pr.Checks.Failed, strings.Join(pr.Checks.FailedNames, ", "))
 	}
+	if pr.Risk.HasFinding(model.FindingMalicious) && (action == model.ActionMerge || action == model.ActionApprove) {
+		return deny(model.ReasonMalicious, "deps.dev flags %s %s as malicious", pr.Package, pr.TargetVersion)
+	}
 	if action == model.ActionClose && !pr.HasBlocker(args["reason"]) {
 		return deny(model.ReasonBlockerMissing, "%s has no %s blocker", pr.Ref, args["reason"])
 	}

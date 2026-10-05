@@ -251,6 +251,7 @@ const (
 	ReasonNotRerunnable    = "not_rerunnable"
 	ReasonReviewerNotFound = "reviewer_not_found"
 	ReasonBlockerMissing   = "blocker_missing"
+	ReasonMalicious        = "malicious_package"
 )
 
 // Result is the outcome of one planned (action, PR) pair.
