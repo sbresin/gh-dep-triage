@@ -89,6 +89,7 @@ func (a *app) listCmd() *cobra.Command {
 			if err != nil {
 				return a.emit(out, err)
 			}
+			a.markMergeDenied(snap.PRs())
 			groups := filterGroups(snap.Groups, keep)
 			out.viewer, out.warnings = snap.Viewer, snap.Warnings
 			out.data = listData{Groups: groups, Counts: countStatuses(groups)}

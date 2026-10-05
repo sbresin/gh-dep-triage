@@ -62,6 +62,7 @@ func (a *app) showCmd() *cobra.Command {
 				return a.emit(out, &triage.RefError{Code: "not_found", Ref: args[0],
 					Message: fmt.Sprintf("%s is not in your triage snapshot (no review requested and not approved by you)", args[0])})
 			}
+			a.markMergeDenied([]*model.PR{pr})
 			files, err := client.PRFiles(cmd.Context(), ref.PR)
 			if err != nil {
 				return a.emit(out, fmt.Errorf("list changed files: %w", err))
@@ -119,6 +120,9 @@ func writeShow(w io.Writer, d showData) {
 	fmt.Fprintf(w, "Group:    %s\n", sanitize(dash(pr.GroupID)))
 	fmt.Fprintf(w, "Head:     %s\n", sanitize(pr.HeadOid))
 	fmt.Fprintf(w, "Checks:   %s\n", checksLabel(pr.Checks))
+	if pr.MergeDenied != "" {
+		fmt.Fprintf(w, "Merge:    denied (%s)\n", pr.MergeDenied)
+	}
 	fmt.Fprintf(w, "Checkout: %s\n", sanitize(d.Checkout))
 	if len(pr.Blockers) > 0 {
 		fmt.Fprintln(w, "\nBlockers:")

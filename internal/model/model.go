@@ -139,6 +139,7 @@ type PR struct {
 	Checks             CheckSummary `json:"checks"`
 	Blockers           []Blocker    `json:"blockers"`
 	Status             Status       `json:"status"`
+	MergeDenied        string       `json:"mergeDenied,omitempty"`
 
 	PackageKey           string       `json:"-"`
 	State                string       `json:"-"`

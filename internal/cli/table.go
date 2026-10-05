@@ -62,11 +62,11 @@ func blockerCodes(pr *model.PR) string {
 
 func writeListTable(w io.Writer, groups []*model.Group) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "STATUS\tREF\tUPDATE\tBUMP\tCHECKS\tBLOCKERS\tGROUP")
+	fmt.Fprintln(tw, "STATUS\tREF\tUPDATE\tBUMP\tCHECKS\tBLOCKERS\tPOLICY\tGROUP")
 	for _, g := range groups {
 		for _, pr := range g.PRs {
-			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-				pr.Status, sanitize(pr.Ref), updateLabel(pr), pr.Bump, checksLabel(pr.Checks), blockerCodes(pr), sanitize(dash(pr.GroupID)))
+			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+				pr.Status, sanitize(pr.Ref), updateLabel(pr), pr.Bump, checksLabel(pr.Checks), blockerCodes(pr), dash(pr.MergeDenied), sanitize(dash(pr.GroupID)))
 		}
 	}
 	tw.Flush()

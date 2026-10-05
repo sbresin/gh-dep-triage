@@ -70,8 +70,7 @@ func (a *app) runPlan(cmd *cobra.Command, name string, items []plan.Item, mo mut
 	if err != nil {
 		return a.emit(out, err)
 	}
-	rules := policy.Rules{Bots: a.cfg.Bots, Soft: true, AllowMajor: mo.allowMajor || a.cfg.Policy.AllowMajor,
-		AllowRepos: a.cfg.Policy.Repos.Allow, DenyRepos: a.cfg.Policy.Repos.Deny}
+	rules := a.rules(mo.allowMajor)
 
 	results := make([]model.Result, len(tasks))
 	var run []plan.Task
@@ -142,4 +141,20 @@ func (a *app) runQueue(ctx context.Context, client github.Client, viewer string,
 
 func (a *app) progressResult(r model.Result) {
 	fmt.Fprintf(a.stderr, "%s %s %s: %s\n", r.Status, actionLabel(r), sanitize(r.Ref), sanitize(dash(resultDetail(r))))
+}
+
+// rules are the CLI policy rules: hard and soft rules with config overrides.
+func (a *app) rules(allowMajor bool) policy.Rules {
+	return policy.Rules{Bots: a.cfg.Bots, Soft: true, AllowMajor: allowMajor || a.cfg.Policy.AllowMajor,
+		AllowRepos: a.cfg.Policy.Repos.Allow, DenyRepos: a.cfg.Policy.Repos.Deny}
+}
+
+// markMergeDenied records why `merge` (without --allow-major) would deny each PR.
+func (a *app) markMergeDenied(prs []*model.PR) {
+	rules := a.rules(false)
+	for _, pr := range prs {
+		if v := policy.Evaluate(model.ActionMerge, pr, nil, rules); !v.Allow {
+			pr.MergeDenied = v.Reason
+		}
+	}
 }

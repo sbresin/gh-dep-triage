@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/sbresin/gh-dep-triage/internal/github"
 	"github.com/sbresin/gh-dep-triage/internal/github/githubtest"
 )
@@ -118,5 +119,42 @@ func TestNotAuthenticated(t *testing.T) {
 	e := decodeEnvelope(t, out)
 	if code != ExitError || e.Errors[0].Code != "not_authenticated" || !strings.Contains(e.Errors[0].Message, "gh auth login") {
 		t.Errorf("code=%d envelope=%+v", code, e)
+	}
+}
+
+func mergeDenied(t *testing.T, out string) map[string]string {
+	t.Helper()
+	var e struct {
+		Data struct {
+			Groups []struct {
+				PRs []struct{ Ref, MergeDenied string }
+			}
+		}
+	}
+	if err := json.Unmarshal([]byte(out), &e); err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, g := range e.Data.Groups {
+		for _, p := range g.PRs {
+			got[p.Ref] = p.MergeDenied
+		}
+	}
+	return got
+}
+
+func TestListMergeDenied(t *testing.T) {
+	_, out, _ := runApp(t, testApp(sampleFake()), "list", "--json")
+	want := map[string]string{"acme/api#1": "", "acme/web#2": "checks_failing", "acme/api#3": "", "acme/api#4": "major_requires_allow_major"}
+	if diff := cmp.Diff(want, mergeDenied(t, out)); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+}
+
+func TestListMergeDeniedHonoursConfig(t *testing.T) {
+	writeConfig(t, "policy:\n  allowMajor: true\n")
+	_, out, _ := runApp(t, testApp(sampleFake()), "list", "--json")
+	if got := mergeDenied(t, out)["acme/api#4"]; got != "" {
+		t.Errorf("allowMajor in config: mergeDenied = %q, want empty", got)
 	}
 }

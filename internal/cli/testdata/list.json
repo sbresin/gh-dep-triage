@@ -48,7 +48,8 @@
               ]
             },
             "blockers": [],
-            "status": "merging"
+            "status": "merging",
+            "mergeDenied": "major_requires_allow_major"
           }
         ]
       },
@@ -147,7 +148,8 @@
                 ]
               }
             ],
-            "status": "blocked"
+            "status": "blocked",
+            "mergeDenied": "checks_failing"
           }
         ]
       },

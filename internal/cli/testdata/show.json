@@ -58,7 +58,8 @@
           ]
         }
       ],
-      "status": "blocked"
+      "status": "blocked",
+      "mergeDenied": "checks_failing"
     },
     "body": "<details>\n<summary>Release notes</summary>\n<p>Fixes prototype pollution.</p>\n</details>",
     "releaseNotes": "<p>Fixes prototype pollution.</p>",
