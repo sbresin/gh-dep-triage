@@ -38,7 +38,7 @@ func (m Model) markedPRs() []*model.PR {
 func (m Model) openConfirm(prs []*model.PR, retryOf *executor.Job) Model {
 	c := confirmState{prs: triage.SortPRs(prs, "repo"), denied: map[string]string{}}
 	for _, pr := range c.prs {
-		if v := policy.Evaluate(model.ActionMerge, pr, m.deps.Rules); !v.Allow {
+		if v := policy.Evaluate(model.ActionMerge, pr, nil, m.deps.Rules); !v.Allow {
 			c.denied[pr.Ref] = v.Reason
 		}
 	}

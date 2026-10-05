@@ -46,7 +46,7 @@ func (q *Queue) run(ctx context.Context, j Job, step func(string)) model.Result 
 		return finish(r, model.ResultFailed, model.ReasonHeadChanged,
 			fmt.Sprintf("head moved from %s to %s since you confirmed", j.PR.HeadOid, fresh.HeadOid))
 	}
-	if v := policy.Evaluate(j.Action, fresh, policy.Rules{Bots: q.o.Rules.Bots}); !v.Allow {
+	if v := policy.Evaluate(j.Action, fresh, nil, policy.Rules{Bots: q.o.Rules.Bots}); !v.Allow {
 		return finish(r, model.ResultDenied, v.Reason, v.Message)
 	}
 	switch j.Action {

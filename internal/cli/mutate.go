@@ -64,7 +64,7 @@ func (a *app) runPlan(cmd *cobra.Command, name string, items []plan.Item, mo mut
 			continue
 		}
 		r := model.Result{Action: t.Action, Ref: t.PR.Ref, HeadOid: t.PR.HeadOid, Steps: []string{}}
-		if v := policy.Evaluate(t.Action, t.PR, rules); !v.Allow {
+		if v := policy.Evaluate(t.Action, t.PR, t.Args, rules); !v.Allow {
 			r.Status, r.Reason, r.Message = model.ResultDenied, v.Reason, v.Message
 			results[i] = r
 			continue

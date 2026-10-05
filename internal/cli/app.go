@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"os/signal"
-
 	"time"
 
 	"github.com/cli/go-gh/v2/pkg/term"

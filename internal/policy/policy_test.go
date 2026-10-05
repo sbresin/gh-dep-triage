@@ -60,7 +60,7 @@ func TestEvaluate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			v := Evaluate(tt.action, tt.pr, tt.rules)
+			v := Evaluate(tt.action, tt.pr, nil, tt.rules)
 			if v.Allow != tt.allow || v.Reason != tt.reason {
 				t.Errorf("got %+v, want allow=%v reason=%q", v, tt.allow, tt.reason)
 			}
@@ -68,5 +68,35 @@ func TestEvaluate(t *testing.T) {
 				t.Error("a denial needs a message")
 			}
 		})
+	}
+}
+
+func TestEvaluateUnblockActions(t *testing.T) {
+	superseded := pr(func(p *model.PR) {
+		p.Blockers = []model.Blocker{{Code: model.BlockerSuperseded, Detail: "Superseded by acme/api#9 (1.7.1)"}}
+	})
+	soft := Rules{Soft: true}
+	tests := []struct {
+		name   string
+		action string
+		pr     *model.PR
+		args   map[string]string
+		rules  Rules
+		allow  bool
+		reason string
+	}{
+		{"close with matching blocker", model.ActionClose, superseded, map[string]string{"reason": "superseded"}, Rules{}, true, ""},
+		{"close without blocker", model.ActionClose, pr(), map[string]string{"reason": "superseded"}, Rules{}, false, model.ReasonBlockerMissing},
+		{"close with other blocker", model.ActionClose, superseded, map[string]string{"reason": "stale"}, Rules{}, false, model.ReasonBlockerMissing},
+		{"rebase human PR", model.ActionRebase, pr(func(p *model.PR) { p.Author = "alice" }), nil, Rules{}, false, model.ReasonNotBotPR},
+		{"rebase denied repo", model.ActionRebase, pr(), nil, Rules{Soft: true, DenyRepos: []string{"acme/*"}}, false, model.ReasonRepoDenied},
+		{"rerun major needs no flag", model.ActionRerun, pr(func(p *model.PR) { p.Bump = model.BumpMajor; p.Checks.Failed = 1 }), nil, soft, true, ""},
+		{"request-review unknown bump", model.ActionRequestReview, pr(func(p *model.PR) { p.Bump = model.BumpUnknown }), map[string]string{"reviewer": "alice"}, soft, true, ""},
+	}
+	for _, tt := range tests {
+		v := Evaluate(tt.action, tt.pr, tt.args, tt.rules)
+		if v.Allow != tt.allow || v.Reason != tt.reason {
+			t.Errorf("%s: got %+v, want allow=%v reason=%q", tt.name, v, tt.allow, tt.reason)
+		}
 	}
 }

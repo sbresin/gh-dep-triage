@@ -31,13 +31,16 @@ func deny(reason, format string, args ...any) Verdict {
 	return Verdict{Reason: reason, Message: fmt.Sprintf(format, args...)}
 }
 
-func Evaluate(action string, pr *model.PR, r Rules) Verdict {
+func Evaluate(action string, pr *model.PR, args map[string]string, r Rules) Verdict {
 	if !isBot(pr.Author, r.Bots) {
 		return deny(model.ReasonNotBotPR, "only bot PRs are supported (author %q)", pr.Author)
 	}
 	// Approving a PR with auto-merge on would merge it despite the failure.
 	if pr.Checks.Failed > 0 && (action == model.ActionMerge || (action == model.ActionApprove && pr.AutoMerge)) {
 		return deny(model.ReasonChecksFailing, "%d failing check(s): %s", pr.Checks.Failed, strings.Join(pr.Checks.FailedNames, ", "))
+	}
+	if action == model.ActionClose && !pr.HasBlocker(args["reason"]) {
+		return deny(model.ReasonBlockerMissing, "%s has no %s blocker", pr.Ref, args["reason"])
 	}
 	if !r.Soft {
 		return Verdict{Allow: true}
@@ -59,7 +62,8 @@ func Evaluate(action string, pr *model.PR, r Rules) Verdict {
 	return Verdict{Allow: true}
 }
 
-func normalizeLogin(s string) string {
+// NormalizeLogin lower-cases a login and strips a "[bot]" suffix.
+func NormalizeLogin(s string) string {
 	return strings.TrimSuffix(strings.ToLower(strings.TrimSpace(s)), "[bot]")
 }
 
@@ -67,9 +71,9 @@ func isBot(author string, bots []string) bool {
 	if len(bots) == 0 {
 		bots = defaultBots
 	}
-	a := normalizeLogin(author)
+	a := NormalizeLogin(author)
 	for _, b := range bots {
-		if normalizeLogin(b) == a {
+		if NormalizeLogin(b) == a {
 			return true
 		}
 	}
