@@ -70,6 +70,7 @@ func countStatuses(groups []*model.Group) counts {
 
 func (a *app) listCmd() *cobra.Command {
 	var scope string
+	var statuses, bumps []string
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List dependency PRs with blockers and suggested actions",
@@ -81,10 +82,19 @@ func (a *app) listCmd() *cobra.Command {
 			if len(args) > 0 {
 				return a.emit(out, &usageError{msg: "list takes no arguments"})
 			}
-			keep, err := scopeFilter(scope)
+			byScope, err := scopeFilter(scope)
 			if err != nil {
 				return a.emit(out, err)
 			}
+			byStatus, err := oneOf(statuses, validStatuses, "--status must be ready, blocked or merging", func(p *model.PR) string { return string(p.Status) })
+			if err != nil {
+				return a.emit(out, err)
+			}
+			byBump, err := oneOf(bumps, validBumps, "--bump must be patch, minor, major or unknown", func(p *model.PR) string { return p.Bump })
+			if err != nil {
+				return a.emit(out, err)
+			}
+			keep := func(p *model.PR) bool { return byScope(p) && byStatus(p) && byBump(p) }
 			_, snap, err := a.loadSnapshot(cmd.Context())
 			if err != nil {
 				return a.emit(out, err)
@@ -98,5 +108,24 @@ func (a *app) listCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&scope, "scope", "all", "review | approved | all")
+	cmd.Flags().StringSliceVar(&statuses, "status", nil, "only these statuses: ready,blocked,merging")
+	cmd.Flags().StringSliceVar(&bumps, "bump", nil, "only these bump types: patch,minor,major,unknown")
 	return cmd
+}
+
+var (
+	validStatuses = map[string]bool{string(model.StatusReady): true, string(model.StatusBlocked): true, string(model.StatusMerging): true}
+	validBumps    = map[string]bool{model.BumpPatch: true, model.BumpMinor: true, model.BumpMajor: true, model.BumpUnknown: true}
+)
+
+// oneOf keeps PRs whose field is one of vals (every PR when vals is empty).
+func oneOf(vals []string, valid map[string]bool, msg string, field func(*model.PR) string) (func(*model.PR) bool, error) {
+	set := map[string]bool{}
+	for _, v := range vals {
+		if !valid[v] {
+			return nil, &usageError{msg: msg}
+		}
+		set[v] = true
+	}
+	return func(p *model.PR) bool { return len(set) == 0 || set[field(p)] }, nil
 }

@@ -158,3 +158,48 @@ func TestListMergeDeniedHonoursConfig(t *testing.T) {
 		t.Errorf("allowMajor in config: mergeDenied = %q, want empty", got)
 	}
 }
+
+func listRefs(t *testing.T, out string) []string {
+	t.Helper()
+	var e struct{ Data struct{ Groups []struct{ PRs []struct{ Ref string } } } }
+	if err := json.Unmarshal([]byte(out), &e); err != nil {
+		t.Fatal(err)
+	}
+	refs := []string{}
+	for _, g := range e.Data.Groups {
+		for _, p := range g.PRs {
+			refs = append(refs, p.Ref)
+		}
+	}
+	return refs
+}
+
+func TestListFilters(t *testing.T) {
+	tests := []struct {
+		args []string
+		want []string
+	}{
+		{[]string{"--status", "ready"}, []string{"acme/api#1"}},
+		{[]string{"--status", "blocked,merging"}, []string{"acme/api#4", "acme/web#2", "acme/api#3"}},
+		{[]string{"--status", "blocked", "--status", "merging"}, []string{"acme/api#4", "acme/web#2", "acme/api#3"}},
+		{[]string{"--bump", "major"}, []string{"acme/api#4"}},
+		{[]string{"--status", "blocked", "--bump", "patch"}, []string{"acme/web#2"}},
+		{[]string{"--scope", "approved", "--status", "ready"}, []string{}},
+	}
+	for _, tt := range tests {
+		code, out, _ := runApp(t, testApp(sampleFake()), append([]string{"list", "--json"}, tt.args...)...)
+		if got := listRefs(t, out); code != ExitOK || !cmp.Equal(got, tt.want) {
+			t.Errorf("%v: code=%d refs=%v, want %v", tt.args, code, got, tt.want)
+		}
+	}
+}
+
+func TestListInvalidFilters(t *testing.T) {
+	for _, args := range [][]string{{"--status", "open"}, {"--bump", "huge"}} {
+		code, out, _ := runApp(t, testApp(sampleFake()), append([]string{"list", "--json"}, args...)...)
+		e := decodeEnvelope(t, out)
+		if code != ExitError || len(e.Errors) != 1 || e.Errors[0].Code != "invalid_argument" {
+			t.Errorf("%v: code=%d errors=%+v", args, code, e.Errors)
+		}
+	}
+}
