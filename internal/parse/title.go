@@ -16,6 +16,8 @@ var (
 	dependabotDirRe     = regexp.MustCompile(`^\s+in\s+(/\S*)`)
 	trailingActionRe    = regexp.MustCompile(`(?i)\s+action$`)
 	leadingNumbersRe    = regexp.MustCompile(`^\d+(?:\.\d+)*`)
+	requirementRe       = regexp.MustCompile(`(?i)\bupdate (.+?) requirement from (.+?) to (.+?)(?:\s+in\s+(/\S*))?\s*$`)
+	versionTokenRe      = regexp.MustCompile(`\d+(?:\.\d+)*`)
 )
 
 type Title struct {
@@ -35,6 +37,11 @@ func ParseTitle(title string) Title {
 			dir = cleanToken(d[1])
 		}
 		return Title{Package: pkg, PackageKey: NormalizePackage(pkg), Source: src, Target: dst, Bump: ClassifyBump(src, dst), Directory: dir}
+	}
+	if m := requirementRe.FindStringSubmatch(title); m != nil {
+		pkg, src, dst := cleanToken(m[1]), cleanToken(m[2]), cleanToken(m[3])
+		return Title{Package: pkg, PackageKey: NormalizePackage(pkg), Source: src, Target: dst,
+			Bump: ClassifyBump(HighestVersion(src), HighestVersion(dst)), Directory: cleanToken(m[4])}
 	}
 	if m := renovateTerraformRe.FindStringSubmatch(title); m != nil {
 		pkg := cleanToken(m[1])
@@ -146,4 +153,16 @@ func CompareVersions(a, b string) (int, bool) {
 		}
 	}
 	return 0, true
+}
+
+// HighestVersion returns the largest numeric version in a requirement range
+// such as "<2.4,>=2.1" ("" if it has none).
+func HighestVersion(r string) string {
+	best := ""
+	for _, v := range versionTokenRe.FindAllString(r, -1) {
+		if c, ok := CompareVersions(v, best); best == "" || (ok && c > 0) {
+			best = v
+		}
+	}
+	return best
 }

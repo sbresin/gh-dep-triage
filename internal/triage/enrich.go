@@ -11,6 +11,9 @@ func Enrich(pr *model.PR) {
 	pr.Package, pr.PackageKey = t.Package, t.PackageKey
 	pr.SourceVersion, pr.TargetVersion, pr.Bump = t.Source, t.Target, t.Bump
 	pr.Directory = t.Directory
+	if b, ok := parse.RenovateBadge(pr.Body); ok && pr.SourceVersion == "" && b.From != "" && parse.BadgeMatches(b, pr.TargetVersion) {
+		pr.SourceVersion, pr.Bump = b.From, parse.ClassifyBump(b.From, b.To)
+	}
 	if pr.CheckRuns == nil {
 		pr.CheckRuns = []model.Check{}
 	}

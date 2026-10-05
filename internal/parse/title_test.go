@@ -30,6 +30,10 @@ func TestParseTitle(t *testing.T) {
 		{"Bump lodash from 4.17.20 to 4.17.21 in the npm_and_yarn group across 1 directory", Title{"lodash", "lodash", "4.17.20", "4.17.21", "patch", ""}},
 		{"update dependency eslint to v9.0.0 in /web", Title{"eslint", "eslint", "", "9.0.0", "unknown", ""}},
 		{"  Weird   spacing title ", Title{"Weird   spacing title", "weird spacing title", "", "", "unknown", ""}},
+		{"Update mypy requirement from <2.4,>=2.1 to >=2.1,<2.5", Title{"mypy", "mypy", "<2.4,>=2.1", ">=2.1,<2.5", "minor", ""}},
+		{"Update ruff requirement from ^0.15.10 to ^0.15.11", Title{"ruff", "ruff", "^0.15.10", "^0.15.11", "patch", ""}},
+		{"Update rails requirement from ~> 6.0 to ~> 7.0 in /api", Title{"rails", "rails", "~> 6.0", "~> 7.0", "major", "/api"}},
+		{"chore(deps): update requests requirement from <3 to <4", Title{"requests", "requests", "<3", "<4", "major", ""}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
@@ -73,6 +77,22 @@ func TestCompareVersions(t *testing.T) {
 		got, ok := CompareVersions(tt.a, tt.b)
 		if got != tt.want || ok != tt.wantOK {
 			t.Errorf("CompareVersions(%q, %q) = %d, %v", tt.a, tt.b, got, ok)
+		}
+	}
+}
+
+func TestHighestVersion(t *testing.T) {
+	tests := []struct{ in, want string }{
+		{"<2.4,>=2.1", "2.4"},
+		{">=2.1,<2.5", "2.5"},
+		{"^0.15.10", "0.15.10"},
+		{"~> 7.0", "7.0"},
+		{"4.17.21", "4.17.21"},
+		{"latest", ""},
+	}
+	for _, tt := range tests {
+		if got := HighestVersion(tt.in); got != tt.want {
+			t.Errorf("HighestVersion(%q) = %q, want %q", tt.in, got, tt.want)
 		}
 	}
 }

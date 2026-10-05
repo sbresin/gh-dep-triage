@@ -3,6 +3,8 @@ package parse
 import (
 	"strings"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestReleaseNotesDependabot(t *testing.T) {
@@ -42,5 +44,35 @@ func TestReleaseNotesRenovateWithoutConfiguration(t *testing.T) {
 func TestReleaseNotesNone(t *testing.T) {
 	if got := ReleaseNotes("just a body"); got != "" {
 		t.Errorf("got %q", got)
+	}
+}
+
+func TestRenovateBadge(t *testing.T) {
+	const mend = "https://developer.mend.io/api/mc/badges/"
+	tests := []struct {
+		name string
+		body string
+		want Badge
+		ok   bool
+	}{
+		{"confidence wins over age", "![age](" + mend + "age/pypi/django/6.1.1?slim=true) | ![confidence](" + mend + "confidence/pypi/django/6.0.8/6.1.1?slim=true)",
+			Badge{"pypi", "django", "6.0.8", "6.1.1"}, true},
+		{"age only", "![age](" + mend + "age/npm/lodash/4.17.21?slim=true)", Badge{"npm", "lodash", "", "4.17.21"}, true},
+		{"encoded scoped name", "![c](" + mend + "confidence/npm/%40types%2Fnode/20.1.0/22.0.0?slim=true)", Badge{"npm", "@types/node", "20.1.0", "22.0.0"}, true},
+		{"unencoded slashes", "![c](" + mend + "confidence/go/github.com/spf13/cobra/v1.8.0/v1.9.1?slim=true)", Badge{"go", "github.com/spf13/cobra", "v1.8.0", "v1.9.1"}, true},
+		{"no badge", "Bumps lodash.", Badge{}, false},
+	}
+	for _, tt := range tests {
+		got, ok := RenovateBadge(tt.body)
+		if ok != tt.ok || !cmp.Equal(got, tt.want) {
+			t.Errorf("%s: got %+v, %v; want %+v, %v", tt.name, got, ok, tt.want, tt.ok)
+		}
+	}
+}
+
+func TestBadgeMatches(t *testing.T) {
+	b := Badge{To: "6.1.1"}
+	if !BadgeMatches(b, "6.1.1") || !BadgeMatches(b, "v6.1.1") || BadgeMatches(b, "6.2.0") || BadgeMatches(b, "") {
+		t.Error("BadgeMatches must compare targets, ignoring a leading v, and reject an empty target")
 	}
 }

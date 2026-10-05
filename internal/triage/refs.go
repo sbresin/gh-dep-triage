@@ -58,11 +58,17 @@ func ParseRef(s string) (Ref, error) {
 	}
 	pkg, version := rest[:at], rest[at+1:]
 	bump := ""
-	if tilde := strings.LastIndex(version, "~"); tilde >= 0 {
-		version, bump = version[:tilde], version[tilde+1:]
-		if _, known := bumpRank[bump]; !known || version == "" {
+	// A ~ with nothing before it starts a range such as "~> 7.0", not a
+	// suffix, unless all that follows is a bump ("@~major" lacks a version).
+	if _, bare := bumpRank[strings.TrimPrefix(version, "~")]; bare && strings.HasPrefix(version, "~") {
+		return Ref{}, invalidRef(s, "suffix must be ~major, ~minor, ~patch or ~unknown after a version")
+	}
+	if tilde := strings.LastIndex(version, "~"); tilde > 0 {
+		v, b := version[:tilde], version[tilde+1:]
+		if _, known := bumpRank[b]; !known {
 			return Ref{}, invalidRef(s, "suffix must be ~major, ~minor, ~patch or ~unknown after a version")
 		}
+		version, bump = v, b
 	}
 	return Ref{Raw: s, Kind: RefGroup, Package: slug(pkg), Target: version, Bump: bump}, nil
 }

@@ -103,3 +103,16 @@ func TestEnrichSetsDirectory(t *testing.T) {
 		t.Errorf("directory = %q", pr.Directory)
 	}
 }
+
+func TestEnrichRenovateSourceFromBadge(t *testing.T) {
+	badge := "![c](https://developer.mend.io/api/mc/badges/confidence/pypi/django/6.0.8/6.1.1?slim=true)"
+	renovate := func(p *model.PR) { p.Author, p.Body = "renovate", badge }
+	pr := testPR("acme/api", 1, "chore(deps): update dependency django to v6.1.1", renovate)
+	if pr.SourceVersion != "6.0.8" || pr.Bump != model.BumpMinor {
+		t.Errorf("source=%q bump=%q, want 6.0.8 minor", pr.SourceVersion, pr.Bump)
+	}
+	other := testPR("acme/api", 2, "chore(deps): update dependency django to v6.2.0", renovate)
+	if other.SourceVersion != "" || other.Bump != model.BumpUnknown {
+		t.Errorf("a badge for another target must be ignored: source=%q bump=%q", other.SourceVersion, other.Bump)
+	}
+}

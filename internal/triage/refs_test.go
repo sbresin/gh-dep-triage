@@ -82,3 +82,21 @@ func TestResolveGroup(t *testing.T) {
 		t.Errorf("want not_found, got %v", err)
 	}
 }
+
+func TestParseRefRangeTargets(t *testing.T) {
+	tests := []struct{ ref, target, bump string }{
+		{"group:mypy@>=2.1,<2.5", ">=2.1,<2.5", ""},
+		{"group:rails@~> 7.0", "~> 7.0", ""},
+		{"group:rails@~> 7.0~major", "~> 7.0", "major"},
+		{"group:requests@~=2.31", "~=2.31", ""},
+	}
+	for _, tt := range tests {
+		r, err := ParseRef(tt.ref)
+		if err != nil || r.Target != tt.target || r.Bump != tt.bump {
+			t.Errorf("ParseRef(%q) = %+v, %v; want target %q bump %q", tt.ref, r, err, tt.target, tt.bump)
+		}
+	}
+	if _, err := ParseRef("group:lodash@4.17.21~huge"); err == nil {
+		t.Error("an unknown suffix after a version must still be rejected")
+	}
+}
