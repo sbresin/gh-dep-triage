@@ -116,3 +116,13 @@ func TestEnrichRenovateSourceFromBadge(t *testing.T) {
 		t.Errorf("a badge for another target must be ignored: source=%q bump=%q", other.SourceVersion, other.Bump)
 	}
 }
+
+// A badge whose source doesn't parse must not turn a known bump into an
+// unknown one: unknown bumps with a target skip --allow-major.
+func TestEnrichBadgeKeepsKnownBump(t *testing.T) {
+	badge := "![c](https://developer.mend.io/api/mc/badges/confidence/docker/node/latest/22?slim=true)"
+	pr := testPR("acme/api", 1, "chore(deps): update dependency node to v22", func(p *model.PR) { p.Author, p.Body = "renovate", badge })
+	if pr.Bump != model.BumpMajor || pr.SourceVersion != "" {
+		t.Errorf("bump=%q source=%q, want major with no source", pr.Bump, pr.SourceVersion)
+	}
+}
