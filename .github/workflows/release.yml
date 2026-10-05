@@ -1,0 +1,16 @@
+name: release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cli/gh-extension-precompile@v2
+        with:
+          go_version_file: go.mod
+          # Passed as one argument after the action's own -ldflags, so it must repeat -s -w.
+          go_build_options: -ldflags=-s -w -X github.com/sbresin/gh-dep-triage/internal/cli.version=${{ github.ref_name }}
