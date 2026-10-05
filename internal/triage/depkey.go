@@ -47,10 +47,9 @@ func projectKey(pkg string) (model.DepKey, bool) {
 }
 
 func versionKey(system, name, version string) (model.DepKey, bool) {
-	if !plainVersionRe.MatchString(version) {
-		version = parse.HighestVersion(version)
-	}
-	if system == "" || name == "" || version == "" {
+	// ponytail: requirement ranges get no risk data; their bounds are often
+	// excluded versions. Upgrade: a package-level findingsbatch request.
+	if system == "" || name == "" || !plainVersionRe.MatchString(version) {
 		return model.DepKey{}, false
 	}
 	version = strings.TrimPrefix(version, "v")

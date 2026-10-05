@@ -25,8 +25,10 @@ func TestDepKey(t *testing.T) {
 		{"pip normalizes", "Bump Django from 4.2 to 5.0", head("dependabot/pip/django-5.0"), model.DepKey{System: "PYPI", Name: "django", Version: "5.0"}, true},
 		{"pip separators", "Bump typing_extensions from 4.11.0 to 4.12.0", head("dependabot/pip/typing-extensions-4.12.0"),
 			model.DepKey{System: "PYPI", Name: "typing-extensions", Version: "4.12.0"}, true},
+		// A range's highest bound is usually excluded ("<2.5"), so looking it
+		// up reports a false NOT_FOUND; ranges get no key.
 		{"pip requirement range", "Update mypy requirement from <2.4,>=2.1 to >=2.1,<2.5", head("dependabot/pip/mypy-gte-2.1-and-lt-2.5"),
-			model.DepKey{System: "PYPI", Name: "mypy", Version: "2.5"}, true},
+			model.DepKey{}, false},
 		{"go", "Bump github.com/spf13/cobra from 1.8.0 to 1.9.1", head("dependabot/go_modules/github.com/spf13/cobra-1.9.1"),
 			model.DepKey{System: "GO", Name: "github.com/spf13/cobra", Version: "v1.9.1"}, true},
 		{"nuget lowercases", "Bump Newtonsoft.Json from 13.0.1 to 13.0.3", head("dependabot/nuget/Newtonsoft.Json-13.0.3"),
