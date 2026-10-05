@@ -200,6 +200,8 @@ func TestCheckArgs(t *testing.T) {
 		{"request-review", map[string]string{"reviewer": "alice", "reason": "x"}, `takes no "reason" arg`},
 		{"close", map[string]string{"reason": "bogus"}, `reason "bogus" must be superseded or stale`},
 		{"close", nil, `close needs "reason" (--reason)`},
+		{"request-review", map[string]string{"reviewer": "REVIEWER"}, "replace the REVIEWER placeholder"},
+		{"request-review", map[string]string{"reviewer": "reviewer"}, "replace the REVIEWER placeholder"},
 	}
 	for _, tc := range bad {
 		err := CheckArgs(tc.action, tc.args)
@@ -237,6 +239,21 @@ func TestParseArgs(t *testing.T) {
 		if !errors.As(err, &pe) {
 			t.Errorf("%s: want *plan.Error, got %v", name, err)
 		}
+	}
+}
+
+func TestResolveKeepsDistinctReviewers(t *testing.T) {
+	items := []Item{
+		{Action: "request-review", Ref: "acme/api#1", Args: map[string]string{"reviewer": "alice"}},
+		{Action: "request-review", Ref: "acme/api#1", Args: map[string]string{"reviewer": "bob"}},
+		{Action: "request-review", Ref: "acme/api#1", Args: map[string]string{"reviewer": "alice"}},
+	}
+	tasks, err := Resolve(snapshot(), items)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tasks) != 2 || tasks[0].Args["reviewer"] != "alice" || tasks[1].Args["reviewer"] != "bob" {
+		t.Errorf("tasks = %+v", tasks)
 	}
 }
 

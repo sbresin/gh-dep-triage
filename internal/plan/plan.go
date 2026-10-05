@@ -63,6 +63,8 @@ func CheckArgs(action string, args map[string]string) error {
 		return errorf("%s needs %q (--%s)", action, want, want)
 	case want == "reason" && v != model.BlockerSuperseded && v != model.BlockerStale:
 		return errorf("reason %q must be superseded or stale", v)
+	case want == "reviewer" && strings.EqualFold(v, "REVIEWER"):
+		return errorf("replace the REVIEWER placeholder with a user login or org/team")
 	case want == "reviewer" && !ValidTeam(v) && strings.ContainsAny(v, "/ \t\r\n"):
 		return errorf("reviewer %q must be a user login or org/team", v)
 	}
@@ -134,7 +136,7 @@ func Resolve(snap *model.Snapshot, items []Item) ([]Task, error) {
 		default:
 			pr := snap.Find(ref.PR)
 			if pr == nil {
-				key := it.Action + " " + strings.ToLower(ref.PR.String())
+				key := it.Action + " " + strings.ToLower(ref.PR.String()) + " " + fmt.Sprint(it.Args)
 				if _, dup := seen[key]; dup {
 					continue
 				}
@@ -146,7 +148,7 @@ func Resolve(snap *model.Snapshot, items []Item) ([]Task, error) {
 			prs = []*model.PR{pr}
 		}
 		for _, pr := range prs {
-			key := it.Action + " " + strings.ToLower(pr.Ref)
+			key := it.Action + " " + strings.ToLower(pr.Ref) + " " + fmt.Sprint(it.Args)
 			task := Task{Action: it.Action, Args: it.Args, PR: pr}
 			stale := it.HeadOid != "" && it.HeadOid != pr.HeadOid
 			if stale {

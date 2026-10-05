@@ -30,14 +30,16 @@ func (q *Queue) mutateStep(ctx context.Context, r model.Result, name string, ste
 	return r, true
 }
 
-// botRequest asks the PR's bot to rebase or recreate: a comment for
-// Dependabot, the rebase checkbox for Renovate.
+// botRequest asks the PR's bot to rebase or recreate: the rebase checkbox
+// for Renovate (any PR body that has one), a comment for Dependabot.
 func (q *Queue) botRequest(ctx context.Context, r model.Result, pr *model.PR, action string, step func(string)) model.Result {
 	var fn func(context.Context) error
-	switch policy.NormalizeLogin(pr.Author) {
-	case "dependabot":
+	// The checkbox decides, not the login: self-hosted Renovate apps have their own.
+	hasBox := strings.Contains(strings.ToLower(pr.Body), "<!-- rebase-check -->")
+	switch bot := policy.NormalizeLogin(pr.Author); {
+	case bot == "dependabot" && !hasBox:
 		fn = func(c context.Context) error { return q.c.Comment(c, pr.ID, "@dependabot "+action) }
-	case "renovate":
+	case bot == "renovate" || hasBox:
 		if strings.Contains(strings.ToLower(pr.Body), rebaseChecked) {
 			return finish(r, model.ResultSkipped, model.ReasonAlreadyRequested, "the rebase checkbox is already ticked")
 		}
@@ -128,7 +130,8 @@ func (q *Queue) closePR(ctx context.Context, r model.Result, pr *model.PR, reaso
 			break
 		}
 	}
-	body := "Closed by gh dep-triage: " + detail + "."
+	// detail embeds versions from bot titles; defuse @-mentions.
+	body := "Closed by gh dep-triage: " + strings.ReplaceAll(detail, "@", "@\u200b") + "."
 	r, ok := q.mutateStep(ctx, r, "commenting", step, func(c context.Context) error { return q.c.Comment(c, pr.ID, body) })
 	if !ok {
 		return r

@@ -353,3 +353,20 @@ func TestStopAtStepBoundarySkipsMutation(t *testing.T) {
 		})
 	}
 }
+
+func TestSubmitDistinctArgsAreNotDuplicates(t *testing.T) {
+	f := repoFake("acme/api#1")
+	q := NewQueue(context.Background(), f, opts(&sleeps{}))
+	q.Pause()
+	pr := enriched(f, "acme/api#1")
+	if _, err := q.Submit("request-review", pr, map[string]string{"reviewer": "alice"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.Submit("request-review", pr, map[string]string{"reviewer": "bob"}); err != nil {
+		t.Errorf("a different reviewer is not a duplicate: %v", err)
+	}
+	if _, err := q.Submit("request-review", pr, map[string]string{"reviewer": "alice"}); !errors.Is(err, ErrAlreadyQueued) {
+		t.Errorf("same reviewer again: %v, want ErrAlreadyQueued", err)
+	}
+	q.Close(true)
+}

@@ -51,12 +51,14 @@ func TestBotRequest(t *testing.T) {
 		{"renovate without checkbox", "rebase", func(p *model.PR) { renovate(p); p.Body = "no box" },
 			"failed no_rebase_checkbox", []string{}, nil, ""},
 		{"other bot", "rebase", func(p *model.PR) { p.Author = "snyk-bot" }, "failed unsupported_bot", []string{}, nil, ""},
+		{"self-hosted renovate", "rebase", func(p *model.PR) { p.Author = "snyk-bot"; p.Body = renovateBody }, "success ", []string{"requested rebase"},
+			[]string{"body acme/api#1"}, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := newMergeFake(tt.mod)
 			o := opts(&sleeps{})
-			if tt.name == "other bot" {
+			if tt.name == "other bot" || tt.name == "self-hosted renovate" {
 				o.Rules.Bots = []string{"snyk-bot"}
 			}
 			got, _ := runAll(t, context.Background(), f, o, job(f, tt.action, "acme/api#1"))
@@ -163,6 +165,17 @@ func TestCloseCommentsThenCloses(t *testing.T) {
 	want := []string{"comment acme/api#1 Closed by gh dep-triage: Superseded by acme/api#9 (1.0.2).", "close acme/api#1"}
 	if diff := cmp.Diff(want, f.Calls); diff != "" {
 		t.Errorf("calls (-want +got):\n%s", diff)
+	}
+}
+
+// Blocker details come from bot titles; an @ must not ping anyone.
+func TestCloseCommentDefusesMentions(t *testing.T) {
+	f := newMergeFake()
+	j := supersededJob(f)
+	j.PR.Blockers[0].Detail = "Superseded by acme/api#9 (@evil/team)"
+	runJob(t, f, j)
+	if len(f.Calls) == 0 || strings.Contains(f.Calls[0], "@evil") || !strings.Contains(f.Calls[0], "@\u200bevil/team") {
+		t.Errorf("calls = %q", f.Calls)
 	}
 }
 

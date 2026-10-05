@@ -5,6 +5,7 @@ package executor
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -164,7 +165,10 @@ type state struct {
 
 func repoKey(pr *model.PR) string { return strings.ToLower(pr.Repo) }
 
-func jobKey(action string, pr *model.PR) string { return action + " " + strings.ToLower(pr.Ref) }
+// jobKey identifies duplicate jobs; args count, so two reviewers are two jobs.
+func jobKey(action string, pr *model.PR, args map[string]string) string {
+	return action + " " + strings.ToLower(pr.Ref) + " " + fmt.Sprint(args)
+}
 
 func (s *state) find(id JobID) *Job {
 	for _, j := range s.jobs {
@@ -263,9 +267,9 @@ func (q *Queue) Submit(action string, pr *model.PR, args map[string]string) (Job
 		if s.closing {
 			return
 		}
-		key := jobKey(action, pr)
+		key := jobKey(action, pr, args)
 		for _, j := range s.jobs {
-			if !j.Finished() && jobKey(j.Action, j.PR) == key {
+			if !j.Finished() && jobKey(j.Action, j.PR, j.Args) == key {
 				err = ErrAlreadyQueued
 				return
 			}
