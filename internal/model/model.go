@@ -153,6 +153,16 @@ type PR struct {
 
 func (p *PR) PRRef() PRRef { return PRRef{Repo: p.Repo, Number: p.Number} }
 
+// HasBlocker reports whether the PR has a blocker with this code.
+func (p *PR) HasBlocker(code string) bool {
+	for _, b := range p.Blockers {
+		if b.Code == code {
+			return true
+		}
+	}
+	return false
+}
+
 type Group struct {
 	ID            string `json:"id,omitempty"`
 	Package       string `json:"package"`
@@ -195,8 +205,13 @@ func (s *Snapshot) Find(ref PRRef) *PR {
 }
 
 const (
-	ActionApprove = "approve"
-	ActionMerge   = "merge"
+	ActionApprove       = "approve"
+	ActionMerge         = "merge"
+	ActionRebase        = "rebase"
+	ActionRecreate      = "recreate"
+	ActionRerun         = "rerun"
+	ActionRequestReview = "request-review"
+	ActionClose         = "close"
 )
 
 const (
@@ -224,15 +239,24 @@ const (
 	ReasonRepoDenied      = "repo_denied"
 	ReasonRepoNotAllowed  = "repo_not_allowed"
 	ReasonMajorNeedsFlag  = "major_requires_allow_major"
+
+	ReasonNoRebaseCheckbox = "no_rebase_checkbox"
+	ReasonAlreadyRequested = "already_requested"
+	ReasonUnsupportedBot   = "unsupported_bot"
+	ReasonNoFailedChecks   = "no_failed_checks"
+	ReasonNotRerunnable    = "not_rerunnable"
+	ReasonReviewerNotFound = "reviewer_not_found"
+	ReasonBlockerMissing   = "blocker_missing"
 )
 
 // Result is the outcome of one planned (action, PR) pair.
 type Result struct {
-	Action  string   `json:"action"`
-	Ref     string   `json:"ref"`
-	Status  string   `json:"status"`
-	Reason  string   `json:"reason,omitempty"`
-	Message string   `json:"message,omitempty"`
-	Steps   []string `json:"steps"`
-	HeadOid string   `json:"headOid,omitempty"`
+	Action  string            `json:"action"`
+	Ref     string            `json:"ref"`
+	Args    map[string]string `json:"args,omitempty"`
+	Status  string            `json:"status"`
+	Reason  string            `json:"reason,omitempty"`
+	Message string            `json:"message,omitempty"`
+	Steps   []string          `json:"steps"`
+	HeadOid string            `json:"headOid,omitempty"`
 }

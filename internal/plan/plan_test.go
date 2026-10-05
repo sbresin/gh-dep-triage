@@ -73,7 +73,7 @@ func TestParseRejects(t *testing.T) {
 }
 
 func TestResolveExpandsGroupsAndOrders(t *testing.T) {
-	tasks, err := Resolve(snapshot(), Items("merge", []string{"group:lodash@4.17.21", "acme/api#3"}))
+	tasks, err := Resolve(snapshot(), Items("merge", []string{"group:lodash@4.17.21", "acme/api#3"}, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +84,7 @@ func TestResolveExpandsGroupsAndOrders(t *testing.T) {
 }
 
 func TestResolveDedupes(t *testing.T) {
-	tasks, err := Resolve(snapshot(), Items("merge", []string{"acme/api#1", "group:lodash@4.17.21", "acme/api#1"}))
+	tasks, err := Resolve(snapshot(), Items("merge", []string{"acme/api#1", "group:lodash@4.17.21", "acme/api#1"}, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +117,7 @@ func TestResolveDedupeHonoursPinnedHead(t *testing.T) {
 			[]view{{"merge", "acme/api#1", model.ResultFailed, model.ReasonHeadChanged}},
 		},
 		"duplicate missing ref": {
-			Items("merge", []string{"acme/api#99", "ACME/api#99"}),
+			Items("merge", []string{"acme/api#99", "ACME/api#99"}, nil),
 			[]view{{"merge", "acme/api#99", model.ResultFailed, model.ReasonNotEligible}},
 		},
 	} {
@@ -156,14 +156,97 @@ func TestResolvePreFailures(t *testing.T) {
 
 func TestResolveErrors(t *testing.T) {
 	var re *triage.RefError
-	if _, err := Resolve(snapshot(), Items("merge", []string{"nonsense"})); !errors.As(err, &re) || re.Code != "invalid_ref" {
+	if _, err := Resolve(snapshot(), Items("merge", []string{"nonsense"}, nil)); !errors.As(err, &re) || re.Code != "invalid_ref" {
 		t.Errorf("invalid ref: %v", err)
 	}
-	if _, err := Resolve(snapshot(), Items("merge", []string{"group:react@1.0.0"})); !errors.As(err, &re) || re.Code != "not_found" {
+	if _, err := Resolve(snapshot(), Items("merge", []string{"group:react@1.0.0"}, nil)); !errors.As(err, &re) || re.Code != "not_found" {
 		t.Errorf("missing group: %v", err)
 	}
 	var pe *Error
 	if _, err := Resolve(snapshot(), []Item{{Action: "merge", Ref: "group:axios@1.7.0", HeadOid: "h3"}}); !errors.As(err, &pe) {
 		t.Errorf("headOid on group: %v", err)
+	}
+}
+
+func TestCheckArgs(t *testing.T) {
+	ok := []struct {
+		action string
+		args   map[string]string
+	}{
+		{"merge", nil},
+		{"rebase", map[string]string{}},
+		{"request-review", map[string]string{"reviewer": "alice"}},
+		{"request-review", map[string]string{"reviewer": "acme/platform"}},
+		{"close", map[string]string{"reason": "superseded"}},
+		{"close", map[string]string{"reason": "stale"}},
+	}
+	for _, tc := range ok {
+		if err := CheckArgs(tc.action, tc.args); err != nil {
+			t.Errorf("%s %v: %v", tc.action, tc.args, err)
+		}
+	}
+	bad := []struct {
+		action string
+		args   map[string]string
+		msg    string
+	}{
+		{"merge", map[string]string{"reason": "stale"}, `merge takes no "reason" arg`},
+		{"request-review", nil, `request-review needs "reviewer" (--reviewer)`},
+		{"request-review", map[string]string{"reviewer": ""}, `needs "reviewer"`},
+		{"request-review", map[string]string{"reviewer": "al ice"}, "must be a user login or org/team"},
+		{"request-review", map[string]string{"reviewer": "/team"}, "must be a user login or org/team"},
+		{"request-review", map[string]string{"reviewer": "org/"}, "must be a user login or org/team"},
+		{"request-review", map[string]string{"reviewer": "a/b/c"}, "must be a user login or org/team"},
+		{"request-review", map[string]string{"reviewer": "alice", "reason": "x"}, `takes no "reason" arg`},
+		{"close", map[string]string{"reason": "bogus"}, `reason "bogus" must be superseded or stale`},
+		{"close", nil, `close needs "reason" (--reason)`},
+	}
+	for _, tc := range bad {
+		err := CheckArgs(tc.action, tc.args)
+		var pe *Error
+		if !errors.As(err, &pe) || !strings.Contains(pe.Message, tc.msg) {
+			t.Errorf("%s %v: got %v, want *Error containing %q", tc.action, tc.args, err, tc.msg)
+		}
+	}
+}
+
+func TestValidTeam(t *testing.T) {
+	for s, want := range map[string]bool{"acme/platform": true, "acme": false, "/x": false, "x/": false, "a/b/c": false, "a /b": false, "": false} {
+		if got := ValidTeam(s); got != want {
+			t.Errorf("ValidTeam(%q) = %v, want %v", s, got, want)
+		}
+	}
+}
+
+func TestParseArgs(t *testing.T) {
+	all := map[string]bool{"close": true, "request-review": true}
+	items, err := Parse(strings.NewReader(`[{"action":"close","ref":"acme/api#1","args":{"reason":"superseded"}}]`), all)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff([]Item{{Action: "close", Ref: "acme/api#1", Args: map[string]string{"reason": "superseded"}}}, items); diff != "" {
+		t.Errorf("(-want +got):\n%s", diff)
+	}
+	for name, body := range map[string]string{
+		"missing reviewer": `[{"action":"request-review","ref":"acme/api#1"}]`,
+		"non-string arg":   `[{"action":"close","ref":"acme/api#1","args":{"reason":1}}]`,
+		"bad reason":       `[{"action":"close","ref":"acme/api#1","args":{"reason":"nope"}}]`,
+	} {
+		_, err := Parse(strings.NewReader(body), all)
+		var pe *Error
+		if !errors.As(err, &pe) {
+			t.Errorf("%s: want *plan.Error, got %v", name, err)
+		}
+	}
+}
+
+func TestResolveCarriesArgs(t *testing.T) {
+	args := map[string]string{"reviewer": "alice"}
+	tasks, err := Resolve(snapshot(), Items("request-review", []string{"acme/api#1", "acme/api#99"}, args))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cmp.Equal(tasks[0].Args, args) || !cmp.Equal(tasks[1].Result.Args, args) {
+		t.Errorf("args not carried: task=%v preResult=%v", tasks[0].Args, tasks[1].Result.Args)
 	}
 }

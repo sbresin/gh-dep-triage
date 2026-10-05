@@ -12,16 +12,17 @@ import (
 )
 
 type Item struct {
-	Action  string         `json:"action"`
-	Ref     string         `json:"ref"`
-	Args    map[string]any `json:"args,omitempty"`
-	HeadOid string         `json:"headOid,omitempty"`
+	Action  string            `json:"action"`
+	Ref     string            `json:"ref"`
+	Args    map[string]string `json:"args,omitempty"`
+	HeadOid string            `json:"headOid,omitempty"`
 }
 
 // Task is one (action, PR) pair to evaluate and run, or — when Result is set —
 // an outcome already decided during resolution.
 type Task struct {
 	Action string
+	Args   map[string]string
 	PR     *model.PR
 	Result *model.Result
 }
@@ -34,12 +35,44 @@ func (e *Error) Error() string { return e.Message }
 func errorf(format string, args ...any) error { return &Error{Message: fmt.Sprintf(format, args...)} }
 
 // Items builds one item per ref for a command such as `merge <refs...>`.
-func Items(action string, refs []string) []Item {
+func Items(action string, refs []string, args map[string]string) []Item {
 	items := make([]Item, len(refs))
 	for i, r := range refs {
-		items[i] = Item{Action: action, Ref: r}
+		items[i] = Item{Action: action, Ref: r, Args: args}
 	}
 	return items
+}
+
+// argKeys is the one required arg of each action that takes one.
+var argKeys = map[string]string{model.ActionRequestReview: "reviewer", model.ActionClose: "reason"}
+
+// CheckArgs validates args for action: the action's one required arg, nothing else.
+func CheckArgs(action string, args map[string]string) error {
+	want := argKeys[action]
+	for k := range args {
+		if k != want {
+			return errorf("%s takes no %q arg", action, k)
+		}
+	}
+	if want == "" {
+		return nil
+	}
+	v := args[want]
+	switch {
+	case v == "":
+		return errorf("%s needs %q (--%s)", action, want, want)
+	case want == "reason" && v != model.BlockerSuperseded && v != model.BlockerStale:
+		return errorf("reason %q must be superseded or stale", v)
+	case want == "reviewer" && !ValidTeam(v) && strings.ContainsAny(v, "/ \t\r\n"):
+		return errorf("reviewer %q must be a user login or org/team", v)
+	}
+	return nil
+}
+
+// ValidTeam reports whether s is org/team: one slash, both sides non-empty, no whitespace.
+func ValidTeam(s string) bool {
+	org, team, ok := strings.Cut(s, "/")
+	return ok && org != "" && team != "" && !strings.Contains(team, "/") && !strings.ContainsAny(s, " \t\r\n")
 }
 
 // Parse reads a JSON array of items, accepting only the given actions.
@@ -63,12 +96,15 @@ func Parse(r io.Reader, actions map[string]bool) ([]Item, error) {
 		if strings.TrimSpace(it.Ref) == "" {
 			return nil, errorf("item %d: ref is required", i)
 		}
+		if err := CheckArgs(it.Action, it.Args); err != nil {
+			return nil, errorf("item %d: %v", i, err)
+		}
 	}
 	return items, nil
 }
 
-func preResult(action, ref, status, reason, message string) Task {
-	return Task{Action: action, Result: &model.Result{Action: action, Ref: ref, Status: status, Reason: reason,
+func preResult(action string, args map[string]string, ref, status, reason, message string) Task {
+	return Task{Action: action, Args: args, Result: &model.Result{Action: action, Ref: ref, Args: args, Status: status, Reason: reason,
 		Message: message, Steps: []string{}}}
 }
 
@@ -103,7 +139,7 @@ func Resolve(snap *model.Snapshot, items []Item) ([]Task, error) {
 					continue
 				}
 				seen[key] = len(tasks)
-				tasks = append(tasks, preResult(it.Action, ref.PR.String(), model.ResultFailed, model.ReasonNotEligible,
+				tasks = append(tasks, preResult(it.Action, it.Args, ref.PR.String(), model.ResultFailed, model.ReasonNotEligible,
 					"not in your triage snapshot (no review requested and not approved by you)"))
 				continue
 			}
@@ -111,10 +147,10 @@ func Resolve(snap *model.Snapshot, items []Item) ([]Task, error) {
 		}
 		for _, pr := range prs {
 			key := it.Action + " " + strings.ToLower(pr.Ref)
-			task := Task{Action: it.Action, PR: pr}
+			task := Task{Action: it.Action, Args: it.Args, PR: pr}
 			stale := it.HeadOid != "" && it.HeadOid != pr.HeadOid
 			if stale {
-				task = preResult(it.Action, pr.Ref, model.ResultFailed, model.ReasonHeadChanged,
+				task = preResult(it.Action, it.Args, pr.Ref, model.ResultFailed, model.ReasonHeadChanged,
 					fmt.Sprintf("head moved from %s to %s since the plan was made", it.HeadOid, pr.HeadOid))
 			}
 			if i, dup := seen[key]; dup {

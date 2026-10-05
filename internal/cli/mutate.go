@@ -28,7 +28,7 @@ func (a *app) mutateCmd(action, short string) *cobra.Command {
 				return a.emit(output{command: action, dryRun: !mo.yes},
 					&usageError{msg: action + " takes at least one ref (owner/repo#123 or group:<package>@<target>)"})
 			}
-			return a.runPlan(cmd, action, plan.Items(action, args), mo)
+			return a.runPlan(cmd, action, plan.Items(action, args, nil), mo)
 		},
 	}
 	cmd.Flags().BoolVar(&mo.yes, "yes", false, "execute the plan (default is a dry run)")

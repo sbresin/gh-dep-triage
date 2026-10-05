@@ -8,7 +8,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"strings"
+
 	"time"
 
 	"github.com/cli/go-gh/v2/pkg/term"
@@ -16,6 +16,7 @@ import (
 	"github.com/sbresin/gh-dep-triage/internal/github"
 	"github.com/sbresin/gh-dep-triage/internal/loader"
 	"github.com/sbresin/gh-dep-triage/internal/model"
+	"github.com/sbresin/gh-dep-triage/internal/plan"
 	"github.com/sbresin/gh-dep-triage/internal/tui"
 	"github.com/spf13/cobra"
 )
@@ -121,7 +122,7 @@ func (a *app) prepare(cmd *cobra.Command) error {
 	if f := cmd.Flag("team"); f != nil && !f.Changed && cfg.Defaults.Team != "" {
 		a.opts.team = cfg.Defaults.Team
 	}
-	if t := a.opts.team; t != "" && (strings.Count(t, "/") != 1 || strings.HasPrefix(t, "/") || strings.HasSuffix(t, "/") || strings.ContainsAny(t, " \t\r\n")) {
+	if t := a.opts.team; t != "" && !plan.ValidTeam(t) {
 		return &usageError{msg: fmt.Sprintf("--team %q must be org/team (from the flag or defaults.team)", t)}
 	}
 	if f := cmd.Flag("limit"); f != nil && !f.Changed && cfg.Defaults.Limit > 0 {
