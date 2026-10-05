@@ -161,7 +161,11 @@ func TestListMergeDeniedHonoursConfig(t *testing.T) {
 
 func listRefs(t *testing.T, out string) []string {
 	t.Helper()
-	var e struct{ Data struct{ Groups []struct{ PRs []struct{ Ref string } } } }
+	var e struct {
+		Data struct {
+			Groups []struct{ PRs []struct{ Ref string } }
+		}
+	}
 	if err := json.Unmarshal([]byte(out), &e); err != nil {
 		t.Fatal(err)
 	}
