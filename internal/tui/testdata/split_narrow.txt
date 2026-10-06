@@ -8,5 +8,5 @@ dep-triage | sort package | 0 marked | queue ✓ 1 ⟳ 1 ⏳ 1 ✗ 1 | user octo
 │                                                  ││                          │
 │                                                  ││                          │
 └──────────────────────────────────────────────────┘└──────────────────────────┘
-tab queue  pgup/dn  spc mark  c confirm  enter fold  s sort  o open  d desc  ...
+tab queue  pgup/dn  spc mark  c confirm  enter fold  s sort  o open  d detail...
 Space toggles Approve+Merge for the focused row.

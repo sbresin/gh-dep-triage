@@ -192,7 +192,7 @@ func TestPauseKey(t *testing.T) {
 func TestQueueDetailsAndPRActions(t *testing.T) {
 	m, _ := queueModel(t, 120)
 	m, _ = press(m, "tab", "k", "k") // web#2
-	d, _ := press(m, "b")
+	d, _ := press(m, "d")
 	if got := detailsText(d); d.popup != popupDetails || d.details.pr.Ref != "acme/web#2" || !strings.Contains(got, "Job") ||
 		!strings.Contains(got, "head_changed") || !strings.Contains(got, "since you confirmed") {
 		t.Errorf("job details:\n%s", got)

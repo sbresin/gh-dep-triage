@@ -22,7 +22,7 @@ dep-triage | sort package | 0 marked | queue ✓ 1 ⟳ 1 ⏳ 1 ✗ 1 | user octo
 │                                                                            ││                                        │
 │                                                                            ││                                        │
 └────────────────────────────────────────────────────────────────────────────┘└────────────────────────────────────────┘
-tab queue  pgup/dn  spc mark  c confirm  enter fold  s sort  o open  d desc  b why  g reload  q quit
+tab queue  pgup/dn  spc mark  c confirm  enter fold  s sort  o open  d details  g reload  q quit
 ```
 
 When you get added as a reviewer on dozens of bot PRs every week, you end up
@@ -66,7 +66,7 @@ The queue runs in the background while you keep triaging.
 | <kbd>space</kbd> / <kbd>c</kbd> | mark for Approve+Merge / confirm |
 | <kbd>enter</kbd> | fold or unfold a group |
 | <kbd>s</kbd> | cycle sort: package, severity, checks, repo |
-| <kbd>b</kbd> / <kbd>d</kbd> | PR details popup (blockers, deps.dev risk, description); <kbd>d</kbd> opens at the description |
+| <kbd>d</kbd> | PR details popup: blockers, deps.dev risk, description |
 | <kbd>r</kbd> / <kbd>R</kbd> / <kbd>x</kbd> | rebase / re-run failed checks / close superseded |
 | <kbd>o</kbd> | open in browser |
 | <kbd>g</kbd> | reload |

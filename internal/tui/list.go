@@ -196,7 +196,7 @@ func (m *Model) toggle(r row) {
 	if r.isGroup() {
 		ready := groupSelectable(r.group)
 		if len(ready) == 0 {
-			m.status = fmt.Sprintf("No PR in %s can be merged now; press b on a PR to see why.", groupLabel(r.group))
+			m.status = fmt.Sprintf("No PR in %s can be merged now; press d on a PR to see why.", groupLabel(r.group))
 			return
 		}
 		all := true
@@ -220,7 +220,7 @@ func (m *Model) toggle(r row) {
 	pr := r.pr
 	switch {
 	case !selectable(pr):
-		m.status = fmt.Sprintf("%s is %s; press b to see why.", pr.Ref, pr.Status)
+		m.status = fmt.Sprintf("%s is %s; press d to see why.", pr.Ref, pr.Status)
 	case m.selected[pr.Ref]:
 		delete(m.selected, pr.Ref)
 		m.status = "Cleared " + pr.Ref + "."

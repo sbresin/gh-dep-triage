@@ -33,7 +33,6 @@ func TestPRActionsOnGroupRow(t *testing.T) {
 	for k, want := range map[string]string{
 		"o": "Open works on PR rows only.",
 		"d": "Details work on PR rows only.",
-		"b": "Details work on PR rows only.",
 	} {
 		got, _ := press(m, k)
 		if got.popup != popupNone || got.status != want {
@@ -91,7 +90,7 @@ func risky() *model.Snapshot {
 func detailsText(m Model) string { return ansi.Strip(m.details.content) }
 
 func TestDetailsPopupFromList(t *testing.T) {
-	m, _ := press(newTest(risky(), Deps{}), "b")
+	m, _ := press(newTest(risky(), Deps{}), "d")
 	if m.popup != popupDetails {
 		t.Fatalf("popup = %d, want details", m.popup)
 	}
@@ -109,41 +108,35 @@ func TestDetailsPopupFromList(t *testing.T) {
 			t.Errorf("view missing %q:\n%s", want, view)
 		}
 	}
+	if strings.Contains(view, "jump") {
+		t.Errorf("no section jumping any more:\n%s", view)
+	}
 	m, _ = press(m, "esc")
 	if m.popup != popupNone {
 		t.Errorf("esc closes the popup, popup = %d", m.popup)
 	}
 }
 
-func TestDetailsJumpBetweenSections(t *testing.T) {
-	m, _ := press(newTest(risky(), Deps{}), "b")
-	if m.details.vp.YOffset() != 0 || m.details.descLine == 0 {
-		t.Fatalf("b opens at the top: offset %d, description at %d", m.details.vp.YOffset(), m.details.descLine)
-	}
-	m, _ = press(m, "d")
-	if m.details.vp.YOffset() != m.details.descLine {
-		t.Errorf("d jumps to the description: offset %d, want %d", m.details.vp.YOffset(), m.details.descLine)
-	}
-	m, _ = press(m, "b")
-	if m.details.vp.YOffset() != 0 {
-		t.Errorf("b jumps back to the top: offset %d", m.details.vp.YOffset())
+func TestDetailsOpenAtTopAndScroll(t *testing.T) {
+	m, _ := press(newTest(risky(), Deps{}), "d")
+	if m.popup != popupDetails || m.details.vp.YOffset() != 0 {
+		t.Fatalf("d opens the popup at the top: popup %d offset %d", m.popup, m.details.vp.YOffset())
 	}
 	m, _ = press(m, "j")
 	if m.details.vp.YOffset() != 1 {
 		t.Errorf("j scrolls: offset %d", m.details.vp.YOffset())
 	}
-	d, _ := press(newTest(risky(), Deps{}), "d")
-	if d.popup != popupDetails || d.details.vp.YOffset() != d.details.descLine {
-		t.Errorf("d opens at the description: popup %d offset %d", d.popup, d.details.vp.YOffset())
+	if b, _ := press(newTest(risky(), Deps{}), "b"); b.popup != popupNone {
+		t.Errorf("b no longer opens details: popup %d", b.popup)
 	}
 }
 
 func TestDetailsActionKeys(t *testing.T) {
-	m, _ := press(newTest(risky(), Deps{}), "b", "r")
+	m, _ := press(newTest(risky(), Deps{}), "d", "r")
 	if m.popup != popupConfirm || m.confirm.action != model.ActionRebase || m.confirm.prs[0].Ref != "acme/api#3" {
 		t.Errorf("r in details opens the rebase confirm: popup %d action %q", m.popup, m.confirm.action)
 	}
-	m, _ = press(newTest(risky(), Deps{}), "b", "x")
+	m, _ = press(newTest(risky(), Deps{}), "d", "x")
 	if m.popup != popupNone || m.status != "acme/api#3 is not superseded." {
 		t.Errorf("x on a PR that isn't superseded: popup %d status %q", m.popup, m.status)
 	}
@@ -156,7 +149,7 @@ func TestDetailsRiskSection(t *testing.T) {
 			Advisories: []string{"GHSA-1"}, Findings: []string{"COOLDOWN", model.FindingMalicious},
 			CooldownEnd: time.Date(2026, 10, 6, 19, 31, 20, 0, time.UTC)}
 	})
-	content, _ := detailsContent(pr, nil, true, 80)
+	content := detailsContent(pr, nil, true, 80)
 	got := ansi.Strip(content)
 	for _, want := range []string{"61,277 ★", "scorecard 7.5", "published 2021-02-20", "deprecated",
 		"COOLDOWN until 2026-10-06 19:31 UTC", "MALICIOUS", "advisories: GHSA-1"} {
@@ -164,7 +157,7 @@ func TestDetailsRiskSection(t *testing.T) {
 			t.Errorf("missing %q:\n%s", want, got)
 		}
 	}
-	none, _ := detailsContent(mkPR("acme/api", 2, "Bump a from 1.0.0 to 1.0.1"), nil, true, 80)
+	none := detailsContent(mkPR("acme/api", 2, "Bump a from 1.0.0 to 1.0.1"), nil, true, 80)
 	if !strings.Contains(ansi.Strip(none), "No deps.dev data") {
 		t.Error("PRs without risk data say so")
 	}
@@ -175,14 +168,14 @@ func TestDetailsAreSanitized(t *testing.T) {
 		p.Body = "hi \x1b]52;c;SGVsbG8=\x07 there \x9b31m"
 		p.Risk = &model.Risk{SourceRepo: "github.com/x/\x1b]52;c;SGVsbG8=\x07y", Findings: []string{"\x9b31mEVIL"}}
 	})
-	content, _ := detailsContent(pr, nil, true, 80)
+	content := detailsContent(pr, nil, true, 80)
 	if strings.Contains(content, "\x1b]52") || strings.Contains(content, "\x9b") {
 		t.Errorf("control sequence leaked: %q", content)
 	}
 }
 
 func TestDetailsFollowResize(t *testing.T) {
-	m, _ := press(newTest(risky(), Deps{}), "b")
+	m, _ := press(newTest(risky(), Deps{}), "d")
 	nm, _ := m.Update(tea.WindowSizeMsg{Width: 60, Height: 20})
 	m = nm.(Model)
 	if m.details.vp.Width() != m.detailsWidth() || m.details.vp.Height() != m.detailsHeight() {
@@ -198,6 +191,6 @@ func TestDetailsFollowResize(t *testing.T) {
 func TestDetailsGolden(t *testing.T) {
 	m := newTest(risky(), Deps{})
 	nm, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 24})
-	m, _ = press(nm.(Model), "b")
+	m, _ = press(nm.(Model), "d")
 	assertGolden(t, "details_popup.txt", plain(m))
 }

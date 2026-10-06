@@ -23,18 +23,16 @@ type browsedMsg struct {
 var noPRMessage = map[string]string{
 	"o": "Open works on PR rows only.",
 	"d": "Details work on PR rows only.",
-	"b": "Details work on PR rows only.",
 }
 
 // detailsState is the open PR details popup: blockers, deps.dev risk and the
 // description in one scrollable view.
 type detailsState struct {
-	pr       *model.PR
-	job      *executor.Job // set when opened from the queue pane
-	actions  bool          // r/R/x act on the PR (opened from the list)
-	content  string
-	descLine int // first line of the Description section
-	vp       viewport.Model
+	pr      *model.PR
+	job     *executor.Job // set when opened from the queue pane
+	actions bool          // r/R/x act on the PR (opened from the list)
+	content string
+	vp      viewport.Model
 }
 
 var blockerTitles = map[string]string{
@@ -72,7 +70,7 @@ func (m Model) focusedPR() *model.PR {
 	return nil
 }
 
-// prAction handles o, d and b for the focused PR. handled is false for other keys.
+// prAction handles o and d for the focused PR. handled is false for other keys.
 func (m Model) prAction(k string) (Model, tea.Cmd, bool) {
 	if _, ok := noPRMessage[k]; !ok {
 		return m, nil, false
@@ -90,7 +88,7 @@ func (m Model) prAction(k string) (Model, tea.Cmd, bool) {
 	if j, ok := m.focusedJob(); ok && m.focus == paneQueue {
 		job = &j
 	}
-	return m.openDetails(pr, job, job == nil, k == "d"), nil, true
+	return m.openDetails(pr, job, job == nil), nil, true
 }
 
 // detailsWidth is the popup's content width; border and padding add 4.
@@ -100,14 +98,11 @@ func (m Model) detailsWidth() int { return max(20, min(m.width-6, 100)) }
 // border, the header with its blank line and the footer.
 func (m Model) detailsHeight() int { return max(1, m.height-7) }
 
-func (m Model) openDetails(pr *model.PR, job *executor.Job, actions, atDescription bool) Model {
-	content, desc := detailsContent(pr, job, actions, m.detailsWidth())
+func (m Model) openDetails(pr *model.PR, job *executor.Job, actions bool) Model {
+	content := detailsContent(pr, job, actions, m.detailsWidth())
 	vp := viewport.New(viewport.WithWidth(m.detailsWidth()), viewport.WithHeight(m.detailsHeight()))
 	vp.SetContent(content)
-	if atDescription {
-		vp.SetYOffset(desc)
-	}
-	m.details = detailsState{pr: pr, job: job, actions: actions, content: content, descLine: desc, vp: vp}
+	m.details = detailsState{pr: pr, job: job, actions: actions, content: content, vp: vp}
 	m.popup = popupDetails
 	return m
 }
@@ -115,7 +110,7 @@ func (m Model) openDetails(pr *model.PR, job *executor.Job, actions, atDescripti
 // resizeDetails re-renders the open popup for a new terminal size.
 func (m Model) resizeDetails() Model {
 	d := m.details
-	m = m.openDetails(d.pr, d.job, d.actions, false)
+	m = m.openDetails(d.pr, d.job, d.actions)
 	m.details.vp.SetYOffset(d.vp.YOffset())
 	return m
 }
@@ -124,12 +119,6 @@ func (m Model) updateDetails(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch k := msg.String(); k {
 	case "esc", "q":
 		m.popup = popupNone
-		return m, nil
-	case "b":
-		m.details.vp.GotoTop()
-		return m, nil
-	case "d":
-		m.details.vp.SetYOffset(m.details.descLine)
 		return m, nil
 	case "o":
 		browse, ref, url := m.deps.Browse, m.details.pr.Ref, m.details.pr.URL
@@ -158,7 +147,7 @@ func (d detailsState) keys() string {
 			keys = append(keys, "x close")
 		}
 	}
-	return strings.Join(append(keys, "b/d jump", "j/k scroll", "o open", "esc close"), "  ")
+	return strings.Join(append(keys, "j/k scroll", "o open", "esc close"), "  ")
 }
 
 func (m Model) viewDetails() string {
@@ -188,10 +177,9 @@ func detailsLabel(pr *model.PR) string {
 	return fmt.Sprintf("%s %s [%s]", pr.Package, versionLabel(pr), pr.Bump)
 }
 
-// detailsContent renders the scrollable part of the popup and returns the
-// line where the Description section starts. All PR, job and deps.dev text
-// is untrusted and sanitized before it is styled.
-func detailsContent(pr *model.PR, job *executor.Job, actions bool, width int) (string, int) {
+// detailsContent renders the scrollable part of the popup. All PR, job and
+// deps.dev text is untrusted and sanitized before it is styled.
+func detailsContent(pr *model.PR, job *executor.Job, actions bool, width int) string {
 	var lines []string
 	add := func(s ...string) { lines = append(lines, s...) }
 	// wrap adds s wrapped to the width after indent, each line styled.
@@ -267,14 +255,13 @@ func detailsContent(pr *model.PR, job *executor.Job, actions bool, width int) (s
 	add(riskLines(pr.Risk)...)
 	add("")
 
-	desc := len(lines)
 	add(styleBold.Render("Description"))
 	add(strings.Split(strings.TrimRight(describe(pr, width), "\n"), "\n")...)
 
 	for i, l := range lines {
 		lines[i] = ansi.Truncate(l, width, "")
 	}
-	return strings.Join(lines, "\n"), desc
+	return strings.Join(lines, "\n")
 }
 
 // actionKey is the list key that queues a suggested action, or "".

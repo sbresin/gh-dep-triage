@@ -119,7 +119,7 @@ func TestReloadKeepsFocusedRow(t *testing.T) {
 func TestReloadOnOtherScreenKeepsStatus(t *testing.T) {
 	deps := Deps{Load: func(context.Context) (*model.Snapshot, error) { return fixture(), nil }}
 	m, cmd := press(newTest(fixture(), deps), "g")
-	m, _ = press(m, "b")
+	m, _ = press(m, "d")
 	want := m.status
 	nm, _ := m.Update(cmd())
 	m = nm.(Model)
