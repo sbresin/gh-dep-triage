@@ -123,8 +123,8 @@ func TestReloadOnOtherScreenKeepsStatus(t *testing.T) {
 	want := m.status
 	nm, _ := m.Update(cmd())
 	m = nm.(Model)
-	if m.status != want || m.reloading || m.screen != screenPager {
-		t.Errorf("status=%q want %q reloading=%v screen=%v", m.status, want, m.reloading, m.screen)
+	if m.status != want || m.reloading || m.popup != popupDetails {
+		t.Errorf("status=%q want %q reloading=%v popup=%v", m.status, want, m.reloading, m.popup)
 	}
 }
 

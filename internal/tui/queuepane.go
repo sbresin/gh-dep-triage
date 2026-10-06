@@ -8,7 +8,6 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/sbresin/gh-dep-triage/internal/executor"
 	"github.com/sbresin/gh-dep-triage/internal/model"
-	"github.com/sbresin/gh-dep-triage/internal/safe"
 )
 
 // shortRef is the repo name without its owner plus the number, e.g. "api#3".
@@ -195,29 +194,4 @@ func (m *Model) togglePause() {
 	}
 	m.deps.Queue.Resume()
 	m.status = "Queue resumed."
-}
-
-// jobText is the queue pane's b view: the job's outcome and the PR's blockers.
-func jobText(j executor.Job) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "%s  %s  %s\n", j.PR.Ref, j.Action, jobWord(j))
-	if j.State == executor.JobRunning && j.Step != "" {
-		fmt.Fprintf(&b, "step: %s\n", j.Step)
-	}
-	if j.Finished() {
-		r := j.Result
-		fmt.Fprintf(&b, "status: %s\n", r.Status)
-		if r.Reason != "" {
-			fmt.Fprintf(&b, "reason: %s\n", r.Reason)
-		}
-		if r.Message != "" {
-			fmt.Fprintf(&b, "message: %s\n", r.Message)
-		}
-		if len(r.Steps) > 0 {
-			fmt.Fprintf(&b, "steps: %s\n", strings.Join(r.Steps, ", "))
-		}
-	}
-	b.WriteString("\n")
-	b.WriteString(blockerText(j.PR))
-	return safe.Text(b.String())
 }

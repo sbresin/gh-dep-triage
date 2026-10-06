@@ -66,9 +66,9 @@ The queue runs in the background while you keep triaging.
 | <kbd>space</kbd> / <kbd>c</kbd> | mark for Approve+Merge / confirm |
 | <kbd>enter</kbd> | fold or unfold a group |
 | <kbd>s</kbd> | cycle sort: package, severity, checks, repo |
-| <kbd>b</kbd> | why is this PR blocked? |
+| <kbd>b</kbd> / <kbd>d</kbd> | PR details popup (blockers, deps.dev risk, description); <kbd>d</kbd> opens at the description |
 | <kbd>r</kbd> / <kbd>R</kbd> / <kbd>x</kbd> | rebase / re-run failed checks / close superseded |
-| <kbd>o</kbd> / <kbd>d</kbd> | open in browser / read the description |
+| <kbd>o</kbd> | open in browser |
 | <kbd>g</kbd> | reload |
 | <kbd>tab</kbd> | switch to the queue (<kbd>x</kbd> cancel, <kbd>r</kbd> retry, <kbd>p</kbd> pause, <kbd>C</kbd> clear) |
 | <kbd>q</kbd> | quit |

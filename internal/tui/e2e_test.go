@@ -134,8 +134,8 @@ func TestEndToEndTriageWhileMerging(t *testing.T) {
 	h.press("j", "space", "c", "y") // rows: axios (api#3), lodash group
 	waitStarted(t, g)
 	h.press("k", "b") // triage on: lodash left the list, blockers of api#3
-	if h.m.screen != screenPager || h.m.pagerTitle != "Blockers: acme/api#3" {
-		t.Fatalf("triage while merging: screen=%d title=%q", h.m.screen, h.m.pagerTitle)
+	if h.m.popup != popupDetails || h.m.details.pr.Ref != "acme/api#3" {
+		t.Fatalf("triage while merging: popup=%d", h.m.popup)
 	}
 	h.press("esc", "q")
 	if h.m.popup != popupQuit {

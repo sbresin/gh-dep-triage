@@ -186,7 +186,7 @@ func (m Model) onReloaded(msg reloadedMsg) (tea.Model, tea.Cmd) {
 			status += fmt.Sprintf(" %d selection(s) cleared: head moved.", moved)
 		}
 	}
-	if m.screen == screenList {
+	if m.popup != popupDetails {
 		m.status = status
 	}
 	return m, nil

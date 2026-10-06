@@ -193,13 +193,16 @@ func TestQueueDetailsAndPRActions(t *testing.T) {
 	m, _ := queueModel(t, 120)
 	m, _ = press(m, "tab", "k", "k") // web#2
 	d, _ := press(m, "b")
-	if got := plain(d); d.screen != screenPager || !strings.Contains(got, "Job: acme/web#2") ||
+	if got := detailsText(d); d.popup != popupDetails || d.details.pr.Ref != "acme/web#2" || !strings.Contains(got, "Job") ||
 		!strings.Contains(got, "head_changed") || !strings.Contains(got, "since you confirmed") {
 		t.Errorf("job details:\n%s", got)
 	}
+	if r, _ := press(d, "r"); r.popup != popupDetails {
+		t.Errorf("action keys are off for queue jobs: popup %d", r.popup)
+	}
 	d, _ = press(m, "d")
-	if !strings.Contains(plain(d), "Description: acme/web#2") {
-		t.Errorf("description of the job's PR:\n%s", plain(d))
+	if d.popup != popupDetails || d.details.pr.Ref != "acme/web#2" || d.details.job == nil {
+		t.Errorf("d on a job opens its details: popup %d", d.popup)
 	}
 	_, cmd := press(m, "o")
 	if msg, ok := cmd().(browsedMsg); !ok || msg.ref != "acme/web#2" {

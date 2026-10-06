@@ -4,9 +4,7 @@ package tui
 import (
 	"context"
 	"fmt"
-	"strings"
 
-	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/sbresin/gh-dep-triage/internal/executor"
@@ -29,19 +27,13 @@ type Deps struct {
 	Who string
 }
 
-type screen int
-
-const (
-	screenList screen = iota
-	screenPager
-)
-
 type popupKind int
 
 const (
 	popupNone popupKind = iota
 	popupConfirm
 	popupQuit
+	popupDetails
 )
 
 // Model is the Bubble Tea model for the TUI.
@@ -51,7 +43,6 @@ type Model struct {
 	snap *model.Snapshot
 
 	width, height int
-	screen        screen
 	popup         popupKind
 	status        string
 	interrupted   bool
@@ -63,11 +54,8 @@ type Model struct {
 	cursor   int
 	scroll   int
 
-	pager       viewport.Model
-	pagerTitle  string
-	pagerReturn screen
-
 	confirm confirmState
+	details detailsState
 
 	focus   pane
 	qcursor int
@@ -92,7 +80,7 @@ type reloadedMsg struct {
 
 func New(ctx context.Context, snap *model.Snapshot, deps Deps) Model {
 	m := Model{
-		ctx: ctx, deps: deps, snap: snap, width: 100, height: 30, screen: screenList,
+		ctx: ctx, deps: deps, snap: snap, width: 100, height: 30,
 		sortMode: "package", expanded: map[string]bool{}, selected: map[string]bool{},
 		badges: map[string]executor.Job{}, qfollow: true,
 		status: "Space toggles Approve+Merge for the focused row.",
@@ -123,8 +111,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		m.fixScroll()
 		m.fixQueueScroll()
-		m.pager.SetWidth(msg.Width)
-		m.pager.SetHeight(max(1, msg.Height-3))
+		if m.popup == popupDetails {
+			m = m.resizeDetails()
+		}
 		return m, nil
 	case browsedMsg:
 		if msg.err != nil {
@@ -158,18 +147,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateConfirm(k)
 		case popupQuit:
 			return m.updateQuit(k)
+		case popupDetails:
+			return m.updateDetails(msg)
 		}
-		switch m.screen {
-		case screenList:
-			return m.updateMain(msg)
-		case screenPager:
-			return m.updatePager(msg)
-		}
-	}
-	if m.screen == screenPager {
-		var cmd tea.Cmd
-		m.pager, cmd = m.pager.Update(msg)
-		return m, cmd
+		return m.updateMain(msg)
 	}
 	return m, nil
 }
@@ -179,15 +160,15 @@ func (m Model) View() tea.View {
 	switch {
 	case m.tooSmall():
 		content = styleRed.Render("Terminal too small for dep-triage.")
-	case m.screen == screenPager:
-		content = m.viewPager()
 	default:
 		content = m.viewMain()
-		if m.popup == popupConfirm {
+		switch m.popup {
+		case popupConfirm:
 			content = overlay(dim(content), m.viewConfirm(), m.width, m.height)
-		}
-		if m.popup == popupQuit {
+		case popupQuit:
 			content = overlay(dim(content), m.viewQuit(), m.width, m.height)
+		case popupDetails:
+			content = overlay(dim(content), m.viewDetails(), m.width, m.height)
 		}
 	}
 	v := tea.NewView(content)
@@ -213,18 +194,6 @@ func (m Model) updateMain(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.updateQueue(msg.String())
 	}
 	return m.updateList(msg)
-}
-
-// frame lays out a full screen: title, subtitle, body lines padded to the
-// terminal height, and a status line at the bottom.
-func (m Model) frame(title, subtitle string, body []string, status string) string {
-	lines := []string{styleBold.Render(clip(title, m.width)), styleDim.Render(clip(subtitle, m.width))}
-	lines = append(lines, body...)
-	for len(lines) < m.height-1 {
-		lines = append(lines, "")
-	}
-	lines = lines[:m.height-1]
-	return strings.Join(append(lines, styleDim.Render(clip(status, m.width))), "\n")
 }
 
 func clip(s string, width int) string { return ansi.Truncate(safe.Inline(s), width, "...") }

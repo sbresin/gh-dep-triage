@@ -1,0 +1,24 @@
+dep-triage | sort package | 0 marked | user octocat
+┌╭────────────────────────────────────────────────────────────────────────────────────────────────╮┐
+││ acme/api#3  axios 1.6.0 -> 1.7.0 [minor]                                               blocked ││
+││                                                                                                ││
+││ Blockers                                                                                       ││
+││ ✗ Behind base branch                                                               behind_base ││
+││   Branch is behind main                                                                        ││
+││   → r  rebase                                                                                  ││
+││                                                                                                ││
+││ Dependency (deps.dev)                                                                          ││
+││   github.com/axios/axios   108,000 ★   scorecard 6.9                                           ││
+││   published 2026-10-01                                                                         ││
+││                                                                                                ││
+││ Description                                                                                    ││
+││                                                                                                ││
+││   Bumps axios from 1.6.0 to 1.7.0.                                                             ││
+││                                                                                                ││
+││   Release note line.                                                                           ││
+││                                                                                                ││
+││   Release note line.                                                                           ││
+││                                                                                                ││
+└│ r rebase  b/d jump  j/k scroll  o open  esc close                                           0% │┘
+t╰────────────────────────────────────────────────────────────────────────────────────────────────╯
+Space toggles Approve+Merge for the focused row.
