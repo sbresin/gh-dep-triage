@@ -82,6 +82,10 @@ type rawPR struct {
 	ReviewRequests struct {
 		Nodes []struct{ RequestedReviewer *rawActor }
 	}
+	Files struct {
+		TotalCount int
+		Nodes      []struct{ Path string }
+	}
 	Commits struct {
 		Nodes []struct {
 			Commit struct {
@@ -179,6 +183,10 @@ func toPR(ref model.PRRef, repo *rawRepo) (*model.PR, bool) {
 		if name != "" {
 			pr.RequestedReviewers = append(pr.RequestedReviewers, name)
 		}
+	}
+	pr.FileCount = raw.Files.TotalCount
+	for _, f := range raw.Files.Nodes {
+		pr.Files = append(pr.Files, f.Path)
 	}
 	truncated := false
 	for _, c := range raw.Commits.Nodes {

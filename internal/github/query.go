@@ -41,6 +41,7 @@ func prFields(number int) string {
       author { __typename login }
       autoMergeRequest { enabledAt }
       reviews(author: $viewer, last: 20) { nodes { state submittedAt } }
+      files(first: 100) { totalCount nodes { path } }
       reviewRequests(first: 20) { nodes { requestedReviewer { __typename ... on User { login } ... on Team { combinedSlug } ... on Bot { login } } } }
       commits(last: 1) { nodes { commit { statusCheckRollup { state contexts(first: 100) { pageInfo { hasNextPage } nodes {
         __typename

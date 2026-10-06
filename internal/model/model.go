@@ -154,6 +154,8 @@ type PR struct {
 	RepoSettings         RepoSettings `json:"-"`
 	ID                   string       `json:"-"`
 	HeadRefName          string       `json:"-"`
+	Files                []string     `json:"-"` // first 100 changed paths
+	FileCount            int          `json:"-"`
 }
 
 func (p *PR) PRRef() PRRef { return PRRef{Repo: p.Repo, Number: p.Number} }

@@ -141,3 +141,16 @@ func TestToPRHeadRefName(t *testing.T) {
 		t.Error("PR query must request headRefName")
 	}
 }
+
+func TestToPRFiles(t *testing.T) {
+	raw := &rawPR{}
+	raw.Files.TotalCount = 3
+	raw.Files.Nodes = []struct{ Path string }{{"go.mod"}, {"go.sum"}}
+	pr, _ := toPR(model.PRRef{Repo: "acme/api", Number: 1}, &rawRepo{PullRequest: raw})
+	if !cmp.Equal(pr.Files, []string{"go.mod", "go.sum"}) || pr.FileCount != 3 {
+		t.Errorf("Files = %v, FileCount = %d", pr.Files, pr.FileCount)
+	}
+	if q, _ := buildPRBatchQuery([]model.PRRef{{Repo: "acme/api", Number: 1}}); !strings.Contains(q, "files(first: 100) { totalCount nodes { path } }") {
+		t.Error("PR query must request files")
+	}
+}
