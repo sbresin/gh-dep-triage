@@ -244,6 +244,7 @@ const (
 	ReasonRepoDenied      = "repo_denied"
 	ReasonRepoNotAllowed  = "repo_not_allowed"
 	ReasonMajorNeedsFlag  = "major_requires_allow_major"
+	ReasonUnparsedTitle   = "unparsed_title"
 
 	ReasonNoRebaseCheckbox = "no_rebase_checkbox"
 	ReasonAlreadyRequested = "already_requested"

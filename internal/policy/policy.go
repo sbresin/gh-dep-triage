@@ -59,7 +59,7 @@ func Evaluate(action string, pr *model.PR, args map[string]string, r Rules) Verd
 			return deny(model.ReasonMajorNeedsFlag, "major bump; pass --allow-major to %s it", action)
 		}
 		if pr.Bump == model.BumpUnknown && pr.TargetVersion == "" {
-			return deny(model.ReasonMajorNeedsFlag, "bump type unknown; pass --allow-major to %s it", action)
+			return deny(model.ReasonUnparsedTitle, "bump type unknown; pass --allow-major to %s it", action)
 		}
 	}
 	return Verdict{Allow: true}
