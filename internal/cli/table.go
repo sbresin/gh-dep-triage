@@ -47,8 +47,11 @@ func checksLabel(c model.CheckSummary) string {
 	if len(parts) > 0 {
 		return strings.Join(parts, "/")
 	}
-	if c.Total > 0 {
+	if c.Passed > 0 {
 		return "OK"
+	}
+	if c.Total > 0 {
+		return "SKIP"
 	}
 	return "--"
 }

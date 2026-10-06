@@ -8,6 +8,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/sbresin/gh-dep-triage/internal/github"
 	"github.com/sbresin/gh-dep-triage/internal/github/githubtest"
+	"github.com/sbresin/gh-dep-triage/internal/model"
 )
 
 type envelopeView struct {
@@ -204,6 +205,19 @@ func TestListInvalidFilters(t *testing.T) {
 		e := decodeEnvelope(t, out)
 		if code != ExitError || len(e.Errors) != 1 || e.Errors[0].Code != "invalid_argument" {
 			t.Errorf("%v: code=%d errors=%+v", args, code, e.Errors)
+		}
+	}
+}
+
+func TestChecksLabel(t *testing.T) {
+	for want, c := range map[string]model.CheckSummary{
+		"--":    {},
+		"OK":    {Total: 2, Passed: 1, Skipped: 1},
+		"SKIP":  {Total: 1, Skipped: 1},
+		"F1/P1": {Total: 2, Failed: 1, Pending: 1},
+	} {
+		if got := checksLabel(c); got != want {
+			t.Errorf("checksLabel(%+v) = %q, want %q", c, got, want)
 		}
 	}
 }
