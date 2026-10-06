@@ -4,6 +4,7 @@ Group:    group:lodash@4.17.21
 Head:     sha2
 Checks:   F2
 Merge:    denied (checks_failing)
+Tier:     manual (checks_failing)
 Checkout: gh pr checkout 2 -R acme/web
 
 Blockers:

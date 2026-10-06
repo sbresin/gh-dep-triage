@@ -49,7 +49,11 @@
             },
             "blockers": [],
             "status": "merging",
-            "mergeDenied": "major_requires_allow_major"
+            "mergeDenied": "major_requires_allow_major",
+            "tier": "manual",
+            "tierReasons": [
+              "major_requires_allow_major"
+            ]
           }
         ]
       },
@@ -93,7 +97,13 @@
               "pendingNames": []
             },
             "blockers": [],
-            "status": "ready"
+            "status": "ready",
+            "tier": "review",
+            "tierReasons": [
+              "no_depsdev_data",
+              "non_manifest_files",
+              "no_release_notes"
+            ]
           },
           {
             "repo": "acme/web",
@@ -149,7 +159,11 @@
               }
             ],
             "status": "blocked",
-            "mergeDenied": "checks_failing"
+            "mergeDenied": "checks_failing",
+            "tier": "manual",
+            "tierReasons": [
+              "checks_failing"
+            ]
           }
         ]
       },
@@ -204,7 +218,15 @@
                 ]
               }
             ],
-            "status": "blocked"
+            "status": "blocked",
+            "tier": "review",
+            "tierReasons": [
+              "bump_unknown",
+              "no_depsdev_data",
+              "untested",
+              "non_manifest_files",
+              "no_release_notes"
+            ]
           }
         ]
       }

@@ -1,9 +1,12 @@
 package cli
 
 import (
+	"encoding/json"
 	"io"
 
 	"github.com/sbresin/gh-dep-triage/internal/model"
+	"github.com/sbresin/gh-dep-triage/internal/plan"
+	"github.com/sbresin/gh-dep-triage/internal/triage"
 	"github.com/spf13/cobra"
 )
 
@@ -70,7 +73,8 @@ func countStatuses(groups []*model.Group) counts {
 
 func (a *app) listCmd() *cobra.Command {
 	var scope string
-	var statuses, bumps []string
+	var statuses, bumps, tiers []string
+	var asPlan bool
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List dependency PRs with blockers and suggested actions",
@@ -94,28 +98,54 @@ func (a *app) listCmd() *cobra.Command {
 			if err != nil {
 				return a.emit(out, err)
 			}
-			keep := func(p *model.PR) bool { return byScope(p) && byStatus(p) && byBump(p) }
+			byTier, err := oneOf(tiers, validTiers, "--tier must be auto, review or manual", func(p *model.PR) string { return p.Tier })
+			if err != nil {
+				return a.emit(out, err)
+			}
+			if asPlan && a.opts.json {
+				return a.emit(out, &usageError{msg: "--plan prints a plan for apply; drop --json"})
+			}
+			keep := func(p *model.PR) bool { return byScope(p) && byStatus(p) && byBump(p) && byTier(p) }
 			_, snap, err := a.loadSnapshot(cmd.Context())
 			if err != nil {
 				return a.emit(out, err)
 			}
-			a.markMergeDenied(snap.PRs())
+			a.annotate(snap.PRs())
 			groups := filterGroups(snap.Groups, keep)
 			out.viewer, out.warnings = snap.Viewer, snap.Warnings
 			out.data = listData{Groups: groups, Counts: countStatuses(groups)}
 			out.human = func(w io.Writer) { writeListTable(w, groups, a.now()) }
+			if asPlan {
+				out.human = func(w io.Writer) { writeMergePlan(w, groups) }
+			}
 			return a.emit(out, nil)
 		},
 	}
 	cmd.Flags().StringVar(&scope, "scope", "all", "review | approved | all")
 	cmd.Flags().StringSliceVar(&statuses, "status", nil, "only these statuses: ready,blocked,merging")
 	cmd.Flags().StringSliceVar(&bumps, "bump", nil, "only these bump types: patch,minor,major,unknown")
+	cmd.Flags().StringSliceVar(&tiers, "tier", nil, "only these tiers: auto,review,manual")
+	cmd.Flags().BoolVar(&asPlan, "plan", false, "print a merge plan (with headOids) for apply --plan - instead of the table")
 	return cmd
+}
+
+// writeMergePlan prints one merge item per PR, pinned to its head commit.
+func writeMergePlan(w io.Writer, groups []*model.Group) {
+	items := []plan.Item{}
+	for _, g := range groups {
+		for _, pr := range g.PRs {
+			items = append(items, plan.Item{Action: model.ActionMerge, Ref: pr.Ref, HeadOid: pr.HeadOid})
+		}
+	}
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false)
+	_ = enc.Encode(items)
 }
 
 var (
 	validStatuses = map[string]bool{string(model.StatusReady): true, string(model.StatusBlocked): true, string(model.StatusMerging): true}
 	validBumps    = map[string]bool{model.BumpPatch: true, model.BumpMinor: true, model.BumpMajor: true, model.BumpUnknown: true}
+	validTiers    = map[string]bool{triage.TierAuto: true, triage.TierReview: true, triage.TierManual: true}
 )
 
 // oneOf keeps PRs whose field is one of vals (every PR when vals is empty).

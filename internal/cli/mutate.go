@@ -10,6 +10,7 @@ import (
 	"github.com/sbresin/gh-dep-triage/internal/model"
 	"github.com/sbresin/gh-dep-triage/internal/plan"
 	"github.com/sbresin/gh-dep-triage/internal/policy"
+	"github.com/sbresin/gh-dep-triage/internal/triage"
 	"github.com/spf13/cobra"
 )
 
@@ -148,12 +149,14 @@ func (a *app) rules(allowMajor bool) policy.Rules {
 		AllowRepos: a.cfg.Policy.Repos.Allow, DenyRepos: a.cfg.Policy.Repos.Deny}
 }
 
-// markMergeDenied records why `merge` (without --allow-major) would deny each PR.
-func (a *app) markMergeDenied(prs []*model.PR) {
+// annotate records why `merge` (without --allow-major) would deny each PR,
+// then its review tier.
+func (a *app) annotate(prs []*model.PR) {
 	rules := a.rules(false)
 	for _, pr := range prs {
 		if v := policy.Evaluate(model.ActionMerge, pr, nil, rules); !v.Allow {
 			pr.MergeDenied = v.Reason
 		}
+		pr.Tier, pr.TierReasons = triage.Tier(pr)
 	}
 }

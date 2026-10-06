@@ -142,6 +142,8 @@ type PR struct {
 	Blockers           []Blocker    `json:"blockers"`
 	Status             Status       `json:"status"`
 	MergeDenied        string       `json:"mergeDenied,omitempty"`
+	Tier               string       `json:"tier,omitempty"`
+	TierReasons        []string     `json:"tierReasons,omitempty"`
 	Risk               *Risk        `json:"risk,omitempty"`
 
 	PackageKey           string       `json:"-"`

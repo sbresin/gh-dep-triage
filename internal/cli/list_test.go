@@ -200,7 +200,7 @@ func TestListFilters(t *testing.T) {
 }
 
 func TestListInvalidFilters(t *testing.T) {
-	for _, args := range [][]string{{"--status", "open"}, {"--bump", "huge"}} {
+	for _, args := range [][]string{{"--status", "open"}, {"--bump", "huge"}, {"--tier", "safe"}} {
 		code, out, _ := runApp(t, testApp(sampleFake()), append([]string{"list", "--json"}, args...)...)
 		e := decodeEnvelope(t, out)
 		if code != ExitError || len(e.Errors) != 1 || e.Errors[0].Code != "invalid_argument" {
@@ -219,5 +219,32 @@ func TestChecksLabel(t *testing.T) {
 		if got := checksLabel(c); got != want {
 			t.Errorf("checksLabel(%+v) = %q, want %q", c, got, want)
 		}
+	}
+}
+
+func TestListTierFilter(t *testing.T) {
+	for tier, want := range map[string][]string{
+		"manual": {"acme/api#4", "acme/web#2"},
+		"review": {"acme/api#1", "acme/api#3"},
+		"auto":   {},
+	} {
+		code, out, _ := runApp(t, testApp(sampleFake()), "list", "--json", "--tier", tier)
+		if got := listRefs(t, out); code != ExitOK || !cmp.Equal(got, want) {
+			t.Errorf("--tier %s: code=%d refs=%v, want %v", tier, code, got, want)
+		}
+	}
+}
+
+func TestListPlan(t *testing.T) {
+	code, out, _ := runApp(t, testApp(sampleFake()), "list", "--status", "ready", "--tier", "review", "--plan")
+	if want := `[{"action":"merge","ref":"acme/api#1","headOid":"sha1"}]` + "\n"; code != ExitOK || out != want {
+		t.Errorf("code=%d out=%q, want %q", code, out, want)
+	}
+	if _, out, _ := runApp(t, testApp(sampleFake()), "list", "--tier", "auto", "--plan"); out != "[]\n" {
+		t.Errorf("empty plan = %q", out)
+	}
+	code, out, _ = runApp(t, testApp(sampleFake()), "list", "--plan", "--json")
+	if e := decodeEnvelope(t, out); code != ExitError || len(e.Errors) != 1 || e.Errors[0].Code != "invalid_argument" {
+		t.Errorf("--plan --json: code=%d errors=%+v", code, e.Errors)
 	}
 }
