@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -113,7 +114,7 @@ func prBadges(pr *model.PR) []string {
 			out = append(out, b.badge)
 		}
 	}
-	if l := pr.Risk.Label(); l != "" {
+	if l := pr.Risk.Label(time.Now()); l != "" {
 		out = append(out, safe.Inline(l))
 	}
 	if pr.Status == model.StatusMerging {
@@ -142,7 +143,7 @@ func groupBadges(g *model.Group, sel map[string]bool) []string {
 	out := []string{}
 	// Every PR in a group updates the same package to the same version.
 	for _, pr := range g.PRs {
-		if l := pr.Risk.Label(); l != "" {
+		if l := pr.Risk.Label(time.Now()); l != "" {
 			out = append(out, safe.Inline(l))
 			break
 		}

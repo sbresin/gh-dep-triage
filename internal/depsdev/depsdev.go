@@ -40,7 +40,10 @@ type versionKey struct {
 }
 
 type finding struct {
-	Type string `json:"type"`
+	Type            string `json:"type"`
+	CooldownContext *struct {
+		End time.Time `json:"end"`
+	} `json:"cooldownContext"`
 }
 
 type projectKey struct {
@@ -162,6 +165,11 @@ func (c *Client) Lookup(ctx context.Context, keys []model.DepKey) (map[model.Dep
 					fs = x.Findings.RequestedVersion.Findings
 				}
 				r.Findings = findingTypes(r.Findings, fs, x.Findings.PackageFindings)
+				for _, f := range append(fs, x.Findings.PackageFindings...) {
+					if c := f.CooldownContext; f.Type == model.FindingCooldown && c != nil && c.End.After(r.CooldownEnd) {
+						r.CooldownEnd = c.End
+					}
+				}
 				out[k] = r
 			}
 			return p.NextPageToken

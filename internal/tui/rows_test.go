@@ -3,6 +3,7 @@ package tui
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/google/go-cmp/cmp"
@@ -165,6 +166,15 @@ func TestRiskBadges(t *testing.T) {
 			p.Risk = &model.Risk{Stars: 108000, Scorecard: 6.9}
 		case "acme/web#2":
 			p.Risk = lodash
+		case "acme/api#4":
+			p.Risk = &model.Risk{Findings: []string{"COOLDOWN"}, CooldownEnd: time.Now().Add(6 * time.Hour), Stars: 2000, Scorecard: 7.1}
+		}
+	}
+	for _, p := range s.PRs() {
+		if p.Ref == "acme/api#4" {
+			if diff := cmp.Diff([]string{"COOLDOWN 6h · 2k★ 7.1", "merging", "approved", "--"}, prBadges(p)); diff != "" {
+				t.Errorf("cooldown badge keeps the stars (-want +got):\n%s", diff)
+			}
 		}
 	}
 	if diff := cmp.Diff([]string{"behind", "108k★ 6.9", "review", "--"}, prBadges(behind)); diff != "" {

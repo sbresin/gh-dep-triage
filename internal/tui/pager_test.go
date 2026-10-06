@@ -112,11 +112,12 @@ func TestBlockerPagerShowsRisk(t *testing.T) {
 	pr := mkPR("acme/api", 1, "Bump lodash from 4.17.20 to 4.17.21", func(p *model.PR) {
 		p.Risk = &model.Risk{System: "NPM", SourceRepo: "github.com/lodash/\x1b[31mlodash", Stars: 61277, Scorecard: 7.5,
 			PublishedAt: time.Date(2021, 2, 20, 15, 42, 16, 0, time.UTC), Deprecated: true,
-			Advisories: []string{"GHSA-1"}, Findings: []string{"COOLDOWN"}}
+			Advisories: []string{"GHSA-1"}, Findings: []string{"COOLDOWN"},
+			CooldownEnd: time.Date(2026, 10, 6, 19, 31, 20, 0, time.UTC)}
 	})
 	got := blockerText(pr)
 	for _, want := range []string{"Dependency (deps.dev)", "github.com/lodash/", "61277 stars", "scorecard 7.5",
-		"published 2021-02-20", "deprecated", "findings: COOLDOWN", "advisories: GHSA-1"} {
+		"published 2021-02-20", "deprecated", "findings: COOLDOWN", "cooldown until 2026-10-06 19:31 UTC", "advisories: GHSA-1"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q:\n%s", want, got)
 		}

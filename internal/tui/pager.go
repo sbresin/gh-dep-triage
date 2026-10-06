@@ -159,6 +159,9 @@ func blockerText(pr *model.PR) string {
 	if len(r.Findings) > 0 {
 		facts = append(facts, "findings: "+strings.Join(r.Findings, ", "))
 	}
+	if r.HasFinding(model.FindingCooldown) && !r.CooldownEnd.IsZero() {
+		facts = append(facts, "cooldown until "+r.CooldownEnd.UTC().Format("2006-01-02 15:04 MST"))
+	}
 	if len(r.Advisories) > 0 {
 		facts = append(facts, "advisories: "+strings.Join(r.Advisories, ", "))
 	}

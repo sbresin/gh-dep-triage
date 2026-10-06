@@ -103,7 +103,7 @@ func (a *app) listCmd() *cobra.Command {
 			groups := filterGroups(snap.Groups, keep)
 			out.viewer, out.warnings = snap.Viewer, snap.Warnings
 			out.data = listData{Groups: groups, Counts: countStatuses(groups)}
-			out.human = func(w io.Writer) { writeListTable(w, groups) }
+			out.human = func(w io.Writer) { writeListTable(w, groups, a.now()) }
 			return a.emit(out, nil)
 		},
 	}

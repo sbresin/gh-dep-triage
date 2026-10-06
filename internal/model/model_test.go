@@ -3,6 +3,7 @@ package model
 import (
 	"encoding/json"
 	"testing"
+	"time"
 )
 
 func TestPRRefString(t *testing.T) {
@@ -46,6 +47,7 @@ func TestPRJSONHidesInternalFields(t *testing.T) {
 }
 
 func TestRiskLabel(t *testing.T) {
+	now := time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC)
 	tests := []struct {
 		risk *Risk
 		want string
@@ -54,10 +56,15 @@ func TestRiskLabel(t *testing.T) {
 		{&Risk{System: "NPM"}, ""},
 		{&Risk{Stars: 61277, Scorecard: 7.5}, "61k★ 7.5"},
 		{&Risk{Stars: 420}, "420★"},
-		{&Risk{Stars: 61277, Findings: []string{"COOLDOWN", "DEPRECATED"}}, "COOLDOWN"},
+		{&Risk{Stars: 61277, Findings: []string{"NOT_FOUND", "DEPRECATED"}}, "NOT_FOUND · 61k★"},
+		{&Risk{Findings: []string{"COOLDOWN"}, CooldownEnd: now.Add(6 * time.Hour), Stars: 2000, Scorecard: 7.1}, "COOLDOWN 6h · 2k★ 7.1"},
+		{&Risk{Findings: []string{"COOLDOWN"}, CooldownEnd: now.Add(6*time.Hour - time.Second)}, "COOLDOWN 6h"},
+		{&Risk{Findings: []string{"COOLDOWN"}, CooldownEnd: now.Add(30 * time.Minute)}, "COOLDOWN <1h"},
+		{&Risk{Findings: []string{"COOLDOWN"}, CooldownEnd: now.Add(80 * time.Hour)}, "COOLDOWN 3d"},
+		{&Risk{Findings: []string{"COOLDOWN"}, CooldownEnd: now.Add(-time.Hour)}, "COOLDOWN"},
 	}
 	for _, tt := range tests {
-		if got := tt.risk.Label(); got != tt.want {
+		if got := tt.risk.Label(now); got != tt.want {
 			t.Errorf("Label(%+v) = %q, want %q", tt.risk, got, tt.want)
 		}
 	}

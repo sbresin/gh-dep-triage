@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/sbresin/gh-dep-triage/internal/github"
 	"github.com/sbresin/gh-dep-triage/internal/model"
@@ -76,7 +77,7 @@ func (a *app) showCmd() *cobra.Command {
 				data.Logs = failedJobLogs(cmd.Context(), client, pr)
 			}
 			out.data = data
-			out.human = func(w io.Writer) { writeShow(w, data) }
+			out.human = func(w io.Writer) { writeShow(w, data, a.now()) }
 			return a.emit(out, nil)
 		},
 	}
@@ -113,7 +114,7 @@ func tailLines(s string, n int) string {
 	return strings.Join(lines, "\n")
 }
 
-func writeShow(w io.Writer, d showData) {
+func writeShow(w io.Writer, d showData, now time.Time) {
 	pr := d.PR
 	fmt.Fprintf(w, "%s  %s  [%s]  %s\n", sanitize(pr.Ref), updateLabel(pr), pr.Bump, pr.Status)
 	fmt.Fprintf(w, "URL:      %s\n", sanitize(pr.URL))
@@ -124,7 +125,7 @@ func writeShow(w io.Writer, d showData) {
 		fmt.Fprintf(w, "Merge:    denied (%s)\n", pr.MergeDenied)
 	}
 	if r := pr.Risk; r != nil {
-		fmt.Fprintf(w, "Risk:     %s  %s", sanitize(dash(r.Label())), sanitize(dash(r.SourceRepo)))
+		fmt.Fprintf(w, "Risk:     %s  %s", sanitize(dash(r.Label(now))), sanitize(dash(r.SourceRepo)))
 		if len(r.Findings) > 1 {
 			fmt.Fprintf(w, "  findings: %s", sanitize(strings.Join(r.Findings, ", ")))
 		}

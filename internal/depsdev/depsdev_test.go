@@ -63,7 +63,7 @@ func TestLookup(t *testing.T) {
 		"relatedProjects":[{"projectKey":{"id":"github.com/lodash/issues"},"relationType":"ISSUE_TRACKER"},
 		                   {"projectKey":{"id":"github.com/lodash/lodash"},"relationType":"SOURCE_REPO"}]}}]}`}
 	s.bodies["/findingsbatch"] = []string{`{"responses":[{"request":{"versionKey":{"system":"NPM","name":"lodash","version":"4.17.21"}},
-		"findings":{"requestedVersion":{"findings":[{"type":"REMEDIATION"},{"type":"COOLDOWN"}]},"packageFindings":[{"type":"COOLDOWN"}]}}]}`}
+		"findings":{"requestedVersion":{"findings":[{"type":"REMEDIATION"},{"type":"COOLDOWN","cooldownContext":{"end":"2026-10-06T19:31:20Z"}}]},"packageFindings":[{"type":"COOLDOWN"}]}}]}`}
 	s.bodies["/projectbatch"] = []string{`{"responses":[
 		{"request":{"projectKey":{"id":"github.com/lodash/lodash"}},"project":{"starsCount":61277,"scorecard":{"overallScore":7.5}}},
 		{"request":{"projectKey":{"id":"github.com/actions/checkout"}},"project":{"starsCount":7000,"scorecard":{"overallScore":6.1}}}]}`}
@@ -74,7 +74,8 @@ func TestLookup(t *testing.T) {
 	}
 	want := map[model.DepKey]model.Risk{
 		lodash: {System: "NPM", SourceRepo: "github.com/lodash/lodash", Stars: 61277, Scorecard: 7.5,
-			PublishedAt: time.Date(2021, 2, 20, 15, 42, 16, 0, time.UTC), Advisories: []string{"GHSA-1"}, Findings: []string{"COOLDOWN"}},
+			PublishedAt: time.Date(2021, 2, 20, 15, 42, 16, 0, time.UTC), Advisories: []string{"GHSA-1"}, Findings: []string{"COOLDOWN"},
+			CooldownEnd: time.Date(2026, 10, 6, 19, 31, 20, 0, time.UTC)},
 		checkout: {SourceRepo: "github.com/actions/checkout", Stars: 7000, Scorecard: 6.1},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {

@@ -274,6 +274,9 @@ type DepKey struct{ System, Name, Version string }
 // FindingMalicious is the deps.dev finding that blocks approve and merge.
 const FindingMalicious = "MALICIOUS"
 
+// FindingCooldown marks a version published too recently to trust yet.
+const FindingCooldown = "COOLDOWN"
+
 // Risk is deps.dev data about a PR's target version and its source project.
 type Risk struct {
 	System      string    `json:"system,omitempty"`
@@ -284,24 +287,47 @@ type Risk struct {
 	Deprecated  bool      `json:"deprecated,omitempty"`
 	Advisories  []string  `json:"advisories,omitempty"`
 	Findings    []string  `json:"findings,omitempty"`
+	CooldownEnd time.Time `json:"cooldownEnd,omitzero"` // when a COOLDOWN finding expires
 }
 
 func (r *Risk) HasFinding(t string) bool { return r != nil && slices.Contains(r.Findings, t) }
 
-// Label is the first finding, else "<stars>★ <scorecard>", else "" (no data).
-func (r *Risk) Label() string {
-	switch {
-	case r == nil || (len(r.Findings) == 0 && r.Stars == 0):
+// Label is the first finding (a COOLDOWN with its time left) and the
+// project's stars and scorecard, joined by " · "; "" when there is no data.
+func (r *Risk) Label(now time.Time) string {
+	if r == nil {
 		return ""
-	case len(r.Findings) > 0:
-		return r.Findings[0]
 	}
-	stars := strconv.Itoa(r.Stars)
-	if r.Stars >= 1000 {
-		stars = strconv.Itoa(r.Stars/1000) + "k"
+	var parts []string
+	if len(r.Findings) > 0 {
+		f := r.Findings[0]
+		if f == FindingCooldown && r.CooldownEnd.After(now) {
+			f += " " + timeLeft(r.CooldownEnd.Sub(now))
+		}
+		parts = append(parts, f)
 	}
-	if r.Scorecard > 0 {
-		return fmt.Sprintf("%s★ %.1f", stars, r.Scorecard)
+	if r.Stars > 0 {
+		stars := strconv.Itoa(r.Stars)
+		if r.Stars >= 1000 {
+			stars = strconv.Itoa(r.Stars/1000) + "k"
+		}
+		stars += "★"
+		if r.Scorecard > 0 {
+			stars += fmt.Sprintf(" %.1f", r.Scorecard)
+		}
+		parts = append(parts, stars)
 	}
-	return stars + "★"
+	return strings.Join(parts, " · ")
+}
+
+// timeLeft is a short rounded duration: "<1h", "6h", "3d".
+func timeLeft(d time.Duration) string {
+	switch {
+	case d < time.Hour:
+		return "<1h"
+	case d < 48*time.Hour:
+		return strconv.Itoa(int(d.Round(time.Hour)/time.Hour)) + "h"
+	default:
+		return strconv.Itoa(int(d.Round(24*time.Hour)/(24*time.Hour))) + "d"
+	}
 }

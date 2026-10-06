@@ -54,7 +54,8 @@ Each PR has:
 - `mergeDenied`: the policy reason `merge` would give. It's missing when merge
   is allowed.
 - `risk`: `{system, sourceRepo, stars, scorecard, publishedAt, deprecated,
-  advisories, findings}` from deps.dev. It's missing when the ecosystem isn't
+  advisories, findings, cooldownEnd}` from deps.dev. `cooldownEnd` says when a
+  `COOLDOWN` finding expires; the table shows the time left (`COOLDOWN 6h`). It's missing when the ecosystem isn't
   covered (Terraform, Docker, …) or deps.dev was unreachable (then a
   `depsdev_unavailable` warning appears).
 - `checks`: `{failed, pending, failedNames, pendingNames, …}`. Pending checks
