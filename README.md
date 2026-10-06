@@ -82,6 +82,9 @@ gh dep-triage list --json                        # snapshot: groups, PRs, blocke
 gh dep-triage list --status ready --bump patch,minor  # just the easy ones, one line per PR
 gh dep-triage show acme/api#12 --logs            # body, release notes, files, failed-job logs
 
+gh dep-triage list --status ready --tier auto --plan > plan.json  # merge plan for PRs rated safe
+gh dep-triage apply --plan plan.json             # dry run it, then add --yes
+
 gh dep-triage merge group:lodash@4.17.21         # dry run: what would happen?
 gh dep-triage merge group:lodash@4.17.21 --yes   # do it
 
