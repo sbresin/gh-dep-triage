@@ -154,3 +154,7 @@ go build -o gh-dep-triage . && gh extension install .   # run your local build a
 ```
 
 Releases are built by [`cli/gh-extension-precompile`](https://github.com/cli/gh-extension-precompile) when a `v*` tag is pushed.
+
+## License
+
+[GPL-3.0-or-later](LICENSE)
