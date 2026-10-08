@@ -11,6 +11,11 @@
 
 </div>
 
+> [!CAUTION]
+> 🤖 **Vibe-coded, with supervision.** An LLM wrote nearly all of this; a human
+> pointed it in a direction and squinted at the result. There will be atrocities.
+> Since it merges PRs on your behalf, trust the dry runs, not the vibes.
+
 ```
 dep-triage | sort package | 0 marked | queue ✓ 1 ⟳ 1 ⏳ 1 ✗ 1 | user octocat
 ┌─ PRs ──────────────────────────────────────────────────────────────────────┐┌─ Queue 4 · ✓ 1 ⟳ 1 ⏳ 1 ✗ 1 ───────────┐
