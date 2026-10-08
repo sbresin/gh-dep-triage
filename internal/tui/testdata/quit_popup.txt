@@ -1,0 +1,12 @@
+dep-triage | sort package | 0 marked | queue ⟳ 1 ⏳ 1 | user octocat
+┌─ PRs ─────────────────╭─────────────────────────────────────────────────╮ · ⟳ 1 ⏳ 1 ────────────┐
+│  󰡖 acme/api#3  axios -│ Quit dep-triage?                                │lodash -> 4.17.21 [pa...│
+│  󰡖 acme/api#4  eslint │                                                 │ lodash -> 4.17.21 [p...│
+│                       │ 1 queued, 1 running                             │                        │
+│                       │                                                 │                        │
+│                       │ w  wait, quit once the queue is idle            │                        │
+│                       │ c  cancel queued, quit once running ones finish │                        │
+│                       │ esc  back                                       │                        │
+└───────────────────────╰─────────────────────────────────────────────────╯────────────────────────┘
+tab queue  pgup/dn  spc mark  c confirm  enter fold  s sort  o open  d details  g reload  q quit
+Queued 2 PR(s) for Approve+Merge.

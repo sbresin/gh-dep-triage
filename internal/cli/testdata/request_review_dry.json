@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "command": "request-review",
+  "viewer": "octocat",
+  "generatedAt": "2026-09-30T12:00:00Z",
+  "dryRun": true,
+  "data": {
+    "results": [
+      {
+        "action": "request-review",
+        "ref": "acme/api#1",
+        "args": {
+          "reviewer": "acme/platform"
+        },
+        "status": "planned",
+        "steps": [
+          "request review from acme/platform"
+        ],
+        "headOid": "sha1"
+      }
+    ],
+    "counts": {
+      "planned": 1,
+      "success": 0,
+      "skipped": 0,
+      "failed": 0,
+      "denied": 0,
+      "total": 1
+    }
+  },
+  "warnings": [],
+  "errors": []
+}

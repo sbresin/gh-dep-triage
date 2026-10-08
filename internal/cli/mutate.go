@@ -1,0 +1,162 @@
+package cli
+
+import (
+	"context"
+	"fmt"
+	"io"
+
+	"github.com/sbresin/gh-dep-triage/internal/executor"
+	"github.com/sbresin/gh-dep-triage/internal/github"
+	"github.com/sbresin/gh-dep-triage/internal/model"
+	"github.com/sbresin/gh-dep-triage/internal/plan"
+	"github.com/sbresin/gh-dep-triage/internal/policy"
+	"github.com/sbresin/gh-dep-triage/internal/triage"
+	"github.com/spf13/cobra"
+)
+
+type mutateOpts struct {
+	yes        bool
+	allowMajor bool
+}
+
+func (a *app) mutateCmd(action, short string) *cobra.Command {
+	var mo mutateOpts
+	var reviewer, reason string
+	cmd := &cobra.Command{
+		Use:   action + " <refs...>",
+		Short: short,
+		RunE: func(cmd *cobra.Command, refs []string) error {
+			out := output{command: action, dryRun: !mo.yes}
+			if len(refs) == 0 {
+				return a.emit(out, &usageError{msg: action + " takes at least one ref (owner/repo#123 or group:<package>@<target>)"})
+			}
+			var args map[string]string
+			switch action {
+			case model.ActionRequestReview:
+				args = map[string]string{"reviewer": reviewer}
+			case model.ActionClose:
+				args = map[string]string{"reason": reason}
+			}
+			if err := plan.CheckArgs(action, args); err != nil {
+				return a.emit(out, err)
+			}
+			return a.runPlan(cmd, action, plan.Items(action, refs, args), mo)
+		},
+	}
+	cmd.Flags().BoolVar(&mo.yes, "yes", false, "execute the plan (default is a dry run)")
+	switch action {
+	case model.ActionApprove, model.ActionMerge:
+		cmd.Flags().BoolVar(&mo.allowMajor, "allow-major", false, "allow major version bumps")
+	case model.ActionRequestReview:
+		cmd.Flags().StringVar(&reviewer, "reviewer", "", "user login or org/team to request a review from")
+	case model.ActionClose:
+		cmd.Flags().StringVar(&reason, "reason", "", "why: superseded or stale (the PR must have that blocker)")
+	}
+	return cmd
+}
+
+// runPlan loads a fresh snapshot, resolves items, applies policy and either
+// reports the plan (dry run) or executes the allowed tasks.
+func (a *app) runPlan(cmd *cobra.Command, name string, items []plan.Item, mo mutateOpts) error {
+	out := output{command: name, dryRun: !mo.yes}
+	if err := a.prepare(cmd); err != nil {
+		return a.emit(out, err)
+	}
+	client, snap, err := a.loadSnapshot(cmd.Context())
+	if err != nil {
+		return a.emit(out, err)
+	}
+	out.viewer, out.warnings = snap.Viewer, snap.Warnings
+	tasks, err := plan.Resolve(snap, items)
+	if err != nil {
+		return a.emit(out, err)
+	}
+	rules := a.rules(mo.allowMajor)
+
+	results := make([]model.Result, len(tasks))
+	var run []plan.Task
+	var runIdx []int
+	for i, t := range tasks {
+		if t.Result != nil {
+			results[i] = *t.Result
+			continue
+		}
+		r := model.Result{Action: t.Action, Ref: t.PR.Ref, Args: t.Args, HeadOid: t.PR.HeadOid, Steps: []string{}}
+		if v := policy.Evaluate(t.Action, t.PR, t.Args, rules); !v.Allow {
+			r.Status, r.Reason, r.Message = model.ResultDenied, v.Reason, v.Message
+			results[i] = r
+			continue
+		}
+		if !mo.yes {
+			results[i] = executor.Preview(t.Action, t.PR, t.Args)
+			continue
+		}
+		run = append(run, t)
+		runIdx = append(runIdx, i)
+	}
+	if len(run) > 0 {
+		got := a.runQueue(cmd.Context(), client, snap.Viewer, run)
+		for k, i := range runIdx {
+			results[i] = got[k]
+		}
+	}
+	out.data = resultsData{Results: results, Counts: countResults(results)}
+	out.code = exitCodeFor(results, !mo.yes)
+	out.human = func(w io.Writer) { writeResults(w, results, !mo.yes) }
+	return a.emit(out, nil)
+}
+
+// runQueue submits tasks to a fresh queue, prints a progress line for every
+// finished job and returns the results in task order. Jobs are queued while
+// the queue is paused so they start in task order; Close(false) resumes it
+// and returns once every job has run (or, after Ctrl-C, been cancelled).
+func (a *app) runQueue(ctx context.Context, client github.Client, viewer string, tasks []plan.Task) []model.Result {
+	q := executor.NewQueue(ctx, client, executor.Options{Viewer: viewer, Rules: policy.Rules{Bots: a.cfg.Bots}, Sleep: a.sleep})
+	results := make([]model.Result, len(tasks))
+	idx := map[executor.JobID]int{}
+	q.Pause()
+	for i, t := range tasks {
+		id, err := q.Submit(t.Action, t.PR, t.Args)
+		if err != nil { // Submit failed: the queue closed after Ctrl-C
+			results[i] = executor.CancelledResult(t.Action, t.PR, t.Args)
+			a.progressResult(results[i])
+			continue
+		}
+		idx[id] = i
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for ev := range q.Events() {
+			if i, ok := idx[ev.Job.ID]; ok && ev.Kind == executor.EventFinished {
+				results[i] = ev.Job.Result
+				a.progressResult(ev.Job.Result)
+			}
+		}
+	}()
+	q.Close(false)
+	<-done
+	return results
+}
+
+func (a *app) progressResult(r model.Result) {
+	fmt.Fprintf(a.stderr, "%s %s %s: %s\n", r.Status, actionLabel(r), sanitize(r.Ref), sanitize(dash(resultDetail(r))))
+}
+
+// rules are the CLI policy rules: hard and soft rules with config overrides.
+func (a *app) rules(allowMajor bool) policy.Rules {
+	return policy.Rules{Bots: a.cfg.Bots, Soft: true, AllowMajor: allowMajor || a.cfg.Policy.AllowMajor,
+		AllowRepos: a.cfg.Policy.Repos.Allow, DenyRepos: a.cfg.Policy.Repos.Deny}
+}
+
+// annotate records why `merge` (without --allow-major) would deny each PR,
+// then its review tier.
+func (a *app) annotate(prs []*model.PR) {
+	rules := a.rules(false)
+	for _, pr := range prs {
+		if v := policy.Evaluate(model.ActionMerge, pr, nil, rules); !v.Allow {
+			pr.MergeDenied = v.Reason
+		}
+		pr.Tier, pr.TierReasons = triage.Tier(pr)
+	}
+}

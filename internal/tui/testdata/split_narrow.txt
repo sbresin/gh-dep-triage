@@ -1,0 +1,12 @@
+dep-triage | sort package | 0 marked | queue ✓ 1 ⟳ 1 ⏳ 1 ✗ 1 | user octocat
+┌─ PRs ────────────────────────────────────────────┐┌─ Queue 4 · ✓ 1 ⟳ 1 ⏳ 1 ✗┐
+│  󰄱 acme/ops#9  zod -> 3.0.1 [patch]    review  --││✓ api#1                   │
+│                                                  ││✗ web#2                   │
+│                                                  ││⟳ api#3                   │
+│                                                  ││⏳ api#4                  │
+│                                                  ││                          │
+│                                                  ││                          │
+│                                                  ││                          │
+└──────────────────────────────────────────────────┘└──────────────────────────┘
+tab queue  pgup/dn  spc mark  c confirm  enter fold  s sort  o open  d detail...
+Space toggles Approve+Merge for the focused row.

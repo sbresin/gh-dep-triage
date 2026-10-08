@@ -1,0 +1,7 @@
+STATUS   REF         UPDATE                     BUMP     TIER    CHECKS  BLOCKERS        POLICY                      RISK  GROUP
+merging  acme/api#4  eslint 8.57.0 -> 9.1.0     major    manual  P1      -               major_requires_allow_major  -     group:eslint@9.1.0
+ready    acme/api#1  lodash 4.17.20 -> 4.17.21  patch    review  OK      -               -                           -     group:lodash@4.17.21
+blocked  acme/web#2  lodash 4.17.20 -> 4.17.21  patch    manual  F2      checks_failing  checks_failing              -     group:lodash@4.17.21
+blocked  acme/api#3  react -> 19.0.0            unknown  review  --      behind_base     -                           -     group:react@19.0.0
+
+4 PRs: 1 ready, 1 merging, 2 blocked

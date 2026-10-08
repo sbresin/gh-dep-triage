@@ -1,0 +1,12 @@
+dep-triage | sort package | 0 marked | queue ✓ 1 ⟳ 1 ⏳ 1 ✗ 1 | user octocat
+┌─ PRs ──────────────────────────────────────────────────────────────────────┐┌─ Queue 4 · ✓ 1 ⟳ 1 ⏳ 1 ✗ 1 ───────────┐
+│  󰄱 acme/ops#9  zod -> 3.0.1 [patch]                              review  --││✓ api#1  lodash -> 4.17.21 [patch]  a...│
+│                                                                            ││✗ web#2  lodash -> 4.17.21 [patch]  h...│
+│                                                                            ││⟳ api#3  axios -> 1.7.0 [minor]  appr...│
+│                                                                            ││⏳ api#4  eslint -> 9.1.0 [major]  qu...│
+│                                                                            ││                                        │
+│                                                                            ││                                        │
+│                                                                            ││                                        │
+└────────────────────────────────────────────────────────────────────────────┘└────────────────────────────────────────┘
+tab queue  pgup/dn  spc mark  c confirm  enter fold  s sort  o open  d details  g reload  q quit
+Space toggles Approve+Merge for the focused row.

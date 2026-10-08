@@ -1,0 +1,21 @@
+acme/web#2  lodash 4.17.20 -> 4.17.21  [patch]  blocked
+URL:      https://github.com/acme/web/pull/2
+Group:    group:lodash@4.17.21
+Head:     sha2
+Checks:   F2
+Merge:    denied (checks_failing)
+Tier:     manual (checks_failing)
+Checkout: gh pr checkout 2 -R acme/web
+
+Blockers:
+  - checks_failing: 2 failing: test, ci/legacy
+      rerun: gh dep-triage rerun acme/web#2 --yes
+      fix: gh dep-triage show acme/web#2 --logs
+      checkout: gh pr checkout 2 -R acme/web
+
+Files:
+  package.json (+1 -1)
+  package-lock.json (+5 -5)
+
+Release notes:
+<p>Fixes prototype pollution.</p>

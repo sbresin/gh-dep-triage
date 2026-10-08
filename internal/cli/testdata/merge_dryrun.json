@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "command": "merge",
+  "viewer": "octocat",
+  "generatedAt": "2026-09-30T12:00:00Z",
+  "dryRun": true,
+  "data": {
+    "results": [
+      {
+        "action": "merge",
+        "ref": "acme/api#1",
+        "status": "planned",
+        "steps": [
+          "approve",
+          "merge (squash) if clean, else enable auto-merge (squash)"
+        ],
+        "headOid": "sha1"
+      },
+      {
+        "action": "merge",
+        "ref": "acme/web#2",
+        "status": "denied",
+        "reason": "checks_failing",
+        "message": "2 failing check(s): test, ci/legacy",
+        "steps": [],
+        "headOid": "sha2"
+      },
+      {
+        "action": "merge",
+        "ref": "acme/api#4",
+        "status": "denied",
+        "reason": "major_requires_allow_major",
+        "message": "major bump; pass --allow-major to merge it",
+        "steps": [],
+        "headOid": "sha4"
+      },
+      {
+        "action": "merge",
+        "ref": "acme/api#99",
+        "status": "failed",
+        "reason": "not_eligible",
+        "message": "not in your triage snapshot (no review requested and not approved by you)",
+        "steps": []
+      }
+    ],
+    "counts": {
+      "planned": 1,
+      "success": 0,
+      "skipped": 0,
+      "failed": 1,
+      "denied": 2,
+      "total": 4
+    }
+  },
+  "warnings": [],
+  "errors": []
+}

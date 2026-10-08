@@ -1,0 +1,98 @@
+package parse
+
+import (
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
+)
+
+func TestParseTitle(t *testing.T) {
+	tests := []struct {
+		title string
+		want  Title
+	}{
+		{"Bump lodash from 4.17.20 to 4.17.21", Title{"lodash", "lodash", "4.17.20", "4.17.21", "patch", ""}},
+		{"build(deps): bump @types/node from 20.1.0 to 22.0.0", Title{"@types/node", "@types/node", "20.1.0", "22.0.0", "major", ""}},
+		{"Bump github.com/spf13/cobra from 1.8.0 to 1.9.1", Title{"github.com/spf13/cobra", "github.com/spf13/cobra", "1.8.0", "1.9.1", "minor", ""}},
+		{"Bump `actions/checkout` from v3 to v4.", Title{"actions/checkout", "actions/checkout", "v3", "v4", "major", ""}},
+		{"Bump Django from 4.2 to 5.0", Title{"Django", "django", "4.2", "5.0", "major", ""}},
+		{"chore(deps): update terraform aws to v5.1.0", Title{"hashicorp/aws", "hashicorp/aws", "", "5.1.0", "unknown", ""}},
+		{"chore(deps): update terraform google to v6", Title{"hashicorp/google", "hashicorp/google", "", "6", "major", ""}},
+		{"Update terraform integrations/github to v6.2.0", Title{"integrations/github", "integrations/github", "", "6.2.0", "unknown", ""}},
+		{"fix(deps): update dependency react to v19.0.1", Title{"react", "react", "", "19.0.1", "unknown", ""}},
+		{"chore(deps): update actions/setup-go action to v6", Title{"actions/setup-go", "actions/setup-go", "", "6", "major", ""}},
+		{"Update github action actions/cache to v4.1.0", Title{"actions/cache", "actions/cache", "", "4.1.0", "unknown", ""}},
+		{"chore(deps): update react monorepo to v19", Title{"react monorepo", "react monorepo", "", "19", "major", ""}},
+		{"Update module github.com/foo/bar to v1.2.3", Title{"module github.com/foo/bar", "module github.com/foo/bar", "", "1.2.3", "unknown", ""}},
+		{"Bump lodash from 4.17.20 to 4.17.21 in /frontend", Title{"lodash", "lodash", "4.17.20", "4.17.21", "patch", "/frontend"}},
+		{"chore(deps): bump hashicorp/aws from 5.0.0 to 5.1.0 in /infra", Title{"hashicorp/aws", "hashicorp/aws", "5.0.0", "5.1.0", "minor", "/infra"}},
+		{"Bump rack from 2.2.8 to 2.2.9 in /", Title{"rack", "rack", "2.2.8", "2.2.9", "patch", "/"}},
+		{"Bump lodash from 4.17.20 to 4.17.21 in the npm_and_yarn group across 1 directory", Title{"lodash", "lodash", "4.17.20", "4.17.21", "patch", ""}},
+		{"update dependency eslint to v9.0.0 in /web", Title{"eslint", "eslint", "", "9.0.0", "unknown", ""}},
+		{"  Weird   spacing title ", Title{"Weird   spacing title", "weird spacing title", "", "", "unknown", ""}},
+		{"Update mypy requirement from <2.4,>=2.1 to >=2.1,<2.5", Title{"mypy", "mypy", "<2.4,>=2.1", ">=2.1,<2.5", "minor", ""}},
+		{"Update ruff requirement from ^0.15.10 to ^0.15.11", Title{"ruff", "ruff", "^0.15.10", "^0.15.11", "patch", ""}},
+		{"Update rails requirement from ~> 6.0 to ~> 7.0 in /api", Title{"rails", "rails", "~> 6.0", "~> 7.0", "major", "/api"}},
+		{"chore(deps): update requests requirement from <3 to <4", Title{"requests", "requests", "<3", "<4", "major", ""}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			if diff := cmp.Diff(tt.want, ParseTitle(tt.title)); diff != "" {
+				t.Errorf("(-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestClassifyBump(t *testing.T) {
+	tests := []struct{ src, dst, want string }{
+		{"1.2.3", "1.2.3", "patch"},
+		{"1.2", "1.3", "minor"},
+		{"1", "2", "major"},
+		{"1.2.3.4", "1.2.3.5", "patch"},
+		{"v1.0.0", "v1.1.0", "minor"},
+		{"1.0.0-beta", "1.0.1", "patch"},
+		{"abc", "1.0", "unknown"},
+		{"", "1.0", "unknown"},
+	}
+	for _, tt := range tests {
+		if got := ClassifyBump(tt.src, tt.dst); got != tt.want {
+			t.Errorf("ClassifyBump(%q, %q) = %q, want %q", tt.src, tt.dst, got, tt.want)
+		}
+	}
+}
+
+func TestCompareVersions(t *testing.T) {
+	tests := []struct {
+		a, b   string
+		want   int
+		wantOK bool
+	}{
+		{"4.17.21", "4.17.20", 1, true},
+		{"1.0", "1.0.0", 0, true},
+		{"v2", "10", -1, true},
+		{"abc", "1", 0, false},
+	}
+	for _, tt := range tests {
+		got, ok := CompareVersions(tt.a, tt.b)
+		if got != tt.want || ok != tt.wantOK {
+			t.Errorf("CompareVersions(%q, %q) = %d, %v", tt.a, tt.b, got, ok)
+		}
+	}
+}
+
+func TestHighestVersion(t *testing.T) {
+	tests := []struct{ in, want string }{
+		{"<2.4,>=2.1", "2.4"},
+		{">=2.1,<2.5", "2.5"},
+		{"^0.15.10", "0.15.10"},
+		{"~> 7.0", "7.0"},
+		{"4.17.21", "4.17.21"},
+		{"latest", ""},
+	}
+	for _, tt := range tests {
+		if got := HighestVersion(tt.in); got != tt.want {
+			t.Errorf("HighestVersion(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
